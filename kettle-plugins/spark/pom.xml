@@ -6,10 +6,10 @@
   <parent>
     <groupId>pentaho</groupId>
     <artifactId>pentaho-big-data-kettle-plugins</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
   <artifactId>pentaho-big-data-kettle-plugins-spark</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>bundle</packaging>
   <name>Pentaho Community Edition Project: ${project.artifactId}</name>
   <description>a Pentaho open source project</description>
@@ -90,6 +90,12 @@
       <artifactId>commons-validator</artifactId>
       <version>${dependency.commons-validator.version}</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>pentaho</groupId>
+      <artifactId>pentaho-metaverse-api</artifactId>
+      <version>${pentaho-metaverse.version}</version>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
   <build>

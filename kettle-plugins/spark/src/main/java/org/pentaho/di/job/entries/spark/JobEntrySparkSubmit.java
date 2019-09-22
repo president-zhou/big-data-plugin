@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2018-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -60,6 +60,7 @@ import org.pentaho.di.job.entry.JobEntryCopy;
 import org.pentaho.di.job.entry.JobEntryInterface;
 import org.pentaho.di.repository.ObjectId;
 import org.pentaho.di.repository.Repository;
+import org.pentaho.dictionary.MetaverseAnalyzers;
 import org.pentaho.metastore.api.IMetaStore;
 import org.w3c.dom.Node;
 
@@ -75,11 +76,12 @@ import static org.pentaho.di.job.entry.validator.JobEntryValidatorUtils.notBlank
  * More information on the options is here: http://spark.apache.org/docs/1.2.0/submitting-applications.html
  */
 
-@JobEntry( image = "org/pentaho/di/ui/job/entries/spark/img/spark.svg", id = "SparkSubmit",
+@JobEntry( image = "org/pentaho/di/ui/job/entries/spark/img/spark.svg",
+  id = MetaverseAnalyzers.JobEntrySparkSubmitAnalyzer.ID,
   name = "JobEntrySparkSubmit.Title", description = "JobEntrySparkSubmit.Description",
   categoryDescription = "i18n:org.pentaho.di.job:JobCategory.Category.BigData",
   i18nPackageName = "org.pentaho.di.job.entries.spark",
-  documentationUrl = "Products/Data_Integration/Job_Entry_Reference/Spark_Submit" )
+  documentationUrl = "Products/Spark_Submit" )
 public class JobEntrySparkSubmit extends JobEntryBase implements Cloneable, JobEntryInterface, JobEntryListener {
   public static final String JOB_TYPE_JAVA_SCALA = "Java or Scala";
   public static final String JOB_TYPE_PYTHON = "Python";

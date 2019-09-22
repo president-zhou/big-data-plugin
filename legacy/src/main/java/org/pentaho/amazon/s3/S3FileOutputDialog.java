@@ -2,7 +2,7 @@
  *
  * Pentaho Big Data
  *
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -59,12 +59,15 @@ import org.pentaho.amazon.AmazonSpoonPlugin;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.Props;
 import org.pentaho.di.core.compress.CompressionProviderFactory;
+import org.pentaho.di.core.encryption.Encr;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleFileException;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMetaInterface;
+import org.pentaho.di.core.row.value.ValueMetaBase;
 import org.pentaho.di.core.row.value.ValueMetaFactory;
 import org.pentaho.di.core.row.value.ValueMetaString;
+import org.pentaho.di.core.util.EnvUtil;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.vfs.KettleVFS;
 import org.pentaho.di.i18n.BaseMessages;
@@ -227,17 +230,13 @@ public class S3FileOutputDialog extends BaseStepDialog implements StepDialogInte
   private Button wSpecifyFormat;
   private FormData fdlSpecifyFormat, fdSpecifyFormat;
 
-  private Label wlUseAwsDefaultCredentials;
-  private Button wUseAwsDefaultCredentials;
-  private FormData fdlUseAwsDefaultCredentials, fdUseAwsDefaultCredentials;
-
   private ColumnInfo[] colinf;
 
   private Map<String, Integer> inputFields;
 
   private boolean gotPreviousFields = false;
 
-  private S3VfsFileChooserHelper helper = null;
+  private S3NVfsFileChooserHelper helper = null;
   private VfsFileChooserDialog fileChooserDialog = null;
 
   public S3FileOutputDialog( Shell parent, Object in, TransMeta transMeta, String sname ) {
@@ -346,38 +345,13 @@ public class S3FileOutputDialog extends BaseStepDialog implements StepDialogInte
     fdSecretKey.right = new FormAttachment( 100, 0 );
     wSecretKey.setLayoutData( fdSecretKey );
 
-    wlUseAwsDefaultCredentials = new Label( wFileComp, SWT.RIGHT );
-    wlUseAwsDefaultCredentials
-      .setText( BaseMessages.getString( PKG, "S3FileOutputDialog.GetCredentialsAtRuntime.Label" ) );
-    props.setLook( wlUseAwsDefaultCredentials );
-    fdlUseAwsDefaultCredentials = new FormData();
-    fdlUseAwsDefaultCredentials.left = new FormAttachment( 0, 0 );
-    fdlUseAwsDefaultCredentials.top = new FormAttachment( wSecretKey, margin );
-    fdlUseAwsDefaultCredentials.right = new FormAttachment( middle, -margin );
-    wlUseAwsDefaultCredentials.setLayoutData( fdlUseAwsDefaultCredentials );
-    wUseAwsDefaultCredentials = new Button( wFileComp, SWT.CHECK );
-    props.setLook( wUseAwsDefaultCredentials );
-    wUseAwsDefaultCredentials
-      .setToolTipText( BaseMessages.getString( PKG, "S3FileOutputDialog.GetCredentialsAtRuntime.Tooltip" ) );
-    fdUseAwsDefaultCredentials = new FormData();
-    fdUseAwsDefaultCredentials.left = new FormAttachment( middle, 0 );
-    fdUseAwsDefaultCredentials.top = new FormAttachment( wSecretKey, margin );
-    fdUseAwsDefaultCredentials.right = new FormAttachment( 100, 0 );
-    wUseAwsDefaultCredentials.setLayoutData( fdUseAwsDefaultCredentials );
-    wUseAwsDefaultCredentials.addSelectionListener( new SelectionAdapter() {
-      @Override
-      public void widgetSelected( SelectionEvent e ) {
-        input.setChanged();
-      }
-    } );
-
     // Filename line
     wlFilename = new Label( wFileComp, SWT.RIGHT );
     wlFilename.setText( BaseMessages.getString( BASE_PKG, "TextFileOutputDialog.Filename.Label" ) );
     props.setLook( wlFilename );
     fdlFilename = new FormData();
     fdlFilename.left = new FormAttachment( 0, 0 );
-    fdlFilename.top = new FormAttachment( wUseAwsDefaultCredentials, margin );
+    fdlFilename.top = new FormAttachment( wSecretKey, margin );
     fdlFilename.right = new FormAttachment( middle, -margin );
     wlFilename.setLayoutData( fdlFilename );
 
@@ -386,16 +360,16 @@ public class S3FileOutputDialog extends BaseStepDialog implements StepDialogInte
     wbFilename.setText( BaseMessages.getString( BASE_PKG, "System.Button.Browse" ) );
     fdbFilename = new FormData();
     fdbFilename.right = new FormAttachment( 100, 0 );
-    fdbFilename.top = new FormAttachment( wUseAwsDefaultCredentials, margin );
+    fdbFilename.top = new FormAttachment( wSecretKey, margin );
     wbFilename.setLayoutData( fdbFilename );
 
     wFilename = new TextVar( transMeta, wFileComp, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
-    wFilename.setText( "s3://s3/" );
+    wFilename.setText( "s3n://s3n/" );
     props.setLook( wFilename );
     wFilename.addModifyListener( lsMod );
     fdFilename = new FormData();
     fdFilename.left = new FormAttachment( middle, 0 );
-    fdFilename.top = new FormAttachment( wUseAwsDefaultCredentials, margin );
+    fdFilename.top = new FormAttachment( wSecretKey, margin );
     fdFilename.right = new FormAttachment( wbFilename, -margin );
     wFilename.setLayoutData( fdFilename );
 
@@ -1228,12 +1202,29 @@ public class S3FileOutputDialog extends BaseStepDialog implements StepDialogInte
               BaseMessages.getString( BASE_PKG, "System.FileType.AllFiles" ) };
 
           if ( StringUtils.isEmpty( wFilename.getText().trim() ) ) {
-            wFilename.setText( "s3://s3/" );
+            wFilename.setText( "s3n://s3n/" );
+          }
+          /* For legacy transformations containing AWS S3 access credentials, {@link Const#KETTLE_USE_AWS_DEFAULT_CREDENTIALS} can force Spoon to use
+           * the Amazon Default Credentials Provider Chain instead of using the credentials embedded in the transformation metadata. */
+          if ( !ValueMetaBase.convertStringToBoolean( Const.NVL( EnvUtil.getSystemProperty( Const.KETTLE_USE_AWS_DEFAULT_CREDENTIALS ), "N" ) ) ) {
+            System.setProperty( S3Util.ACCESS_KEY_SYSTEM_PROPERTY, transMeta.environmentSubstitute( wAccessKey.getText() ) );
+            System.setProperty( S3Util.SECRET_KEY_SYSTEM_PROPERTY, transMeta.environmentSubstitute( wSecretKey.getText() ) );
           }
 
-          FileObject selectedFile =
-            getFileChooserHelper().browse( fileFilters, fileFilterNames, wFilename.getText(), getFileSystemOptions(),
-              VfsFileChooserDialog.VFS_DIALOG_OPEN_FILE_OR_DIRECTORY );
+          Props.getInstance().setCustomParameter( "S3VfsFileChooserDialog.AccessKey",
+            Encr.encryptPasswordIfNotUsingVariables( wAccessKey.getText() ) );
+          Props.getInstance().setCustomParameter( "S3VfsFileChooserDialog.SecretKey",
+            Encr.encryptPasswordIfNotUsingVariables( wSecretKey.getText() ) );
+          Props.getInstance().setCustomParameter( "S3VfsFileChooserDialog.Filename", wFilename.getText() );
+
+
+            FileObject selectedFile =
+              getFileChooserHelper().browse( fileFilters, fileFilterNames, wFilename.getText(), getFileSystemOptions(),
+                VfsFileChooserDialog.VFS_DIALOG_OPEN_FILE_OR_DIRECTORY );
+
+          System.setProperty( S3Util.ACCESS_KEY_SYSTEM_PROPERTY, "" );
+          System.setProperty( S3Util.SECRET_KEY_SYSTEM_PROPERTY, "" );
+
           if ( selectedFile != null ) {
             String filename = selectedFile.getName().getURI();
             String extension = wExtension.getText();
@@ -1454,7 +1445,6 @@ public class S3FileOutputDialog extends BaseStepDialog implements StepDialogInte
       wSecretKey.setText( input.getSecretKey() );
     }
 
-    wUseAwsDefaultCredentials.setSelection( input.getUseAwsDefaultCredentials() );
     wSplitEvery.setText( "" + input.getSplitEvery() );
 
     wEnclForced.setSelection( input.isEnclosureForced() );
@@ -1527,10 +1517,9 @@ public class S3FileOutputDialog extends BaseStepDialog implements StepDialogInte
   private void getInfo( S3FileOutputMeta tfoi ) {
     tfoi.setAccessKey( wAccessKey.getText() );
     tfoi.setSecretKey( wSecretKey.getText() );
-    tfoi.setUseAwsDefaultCredentials( wUseAwsDefaultCredentials.getSelection() );
 
     if ( StringUtils.isEmpty( wFilename.getText().trim() ) ) {
-      wFilename.setText( "s3://s3/" );
+      wFilename.setText( "s3n://s3n/" );
     }
 
     tfoi.setFileName( wFilename.getText() );
@@ -1681,20 +1670,24 @@ public class S3FileOutputDialog extends BaseStepDialog implements StepDialogInte
     return this.getClass().getName();
   }
 
-  protected S3VfsFileChooserHelper getFileChooserHelper() throws KettleFileException, FileSystemException {
+  protected S3NVfsFileChooserHelper getFileChooserHelper() throws KettleFileException, FileSystemException {
     if ( helper == null ) {
-      helper = new S3VfsFileChooserHelper( shell, getFileChooserDialog(), getVariableSpace(), getFileSystemOptions() );
+      helper = new S3NVfsFileChooserHelper( shell, getFileChooserDialog(), getVariableSpace(), getFileSystemOptions() );
     }
     return helper;
   }
 
   protected VfsFileChooserDialog getFileChooserDialog() throws KettleFileException {
     if ( this.fileChooserDialog == null ) {
-      FileObject initialFile = null;
-      FileObject defaultInitialFile = KettleVFS.getFileObject( "file:///c:/" );
+      String filename = wFilename.getText();
+      String defaultFileObject = "s3n://s3n";
+      if ( !StringUtils.isEmpty( filename ) && filename.startsWith( "s3://s3" ) ) {
+        defaultFileObject = "s3://s3";
+      }
+      FileObject defaultInitialFile = KettleVFS.getFileObject( defaultFileObject );
 
       VfsFileChooserDialog fileChooserDialog =
-        Spoon.getInstance().getVfsFileChooserDialog( defaultInitialFile, initialFile );
+        Spoon.getInstance().getVfsFileChooserDialog( defaultInitialFile, null );
       this.fileChooserDialog = fileChooserDialog;
     }
     return this.fileChooserDialog;

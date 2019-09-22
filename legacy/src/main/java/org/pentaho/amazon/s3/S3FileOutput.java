@@ -2,7 +2,7 @@
  *
  * Pentaho Big Data
  *
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,73 +22,60 @@
 
 package org.pentaho.amazon.s3;
 
-import com.amazonaws.auth.AWSCredentials;
-import org.apache.commons.vfs2.FileObject;
-import org.apache.commons.vfs2.FileSystemException;
-import org.apache.commons.vfs2.FileSystemOptions;
-import org.apache.commons.vfs2.auth.StaticUserAuthenticator;
-import org.apache.commons.vfs2.impl.DefaultFileSystemConfigBuilder;
-import org.pentaho.di.core.encryption.Encr;
-import org.pentaho.di.core.exception.KettleFileException;
-import org.pentaho.di.core.variables.VariableSpace;
-import org.pentaho.di.core.vfs.KettleVFS;
+import com.google.common.annotations.VisibleForTesting;
+import org.pentaho.di.core.Const;
+import org.pentaho.di.core.row.value.ValueMetaBase;
+import org.pentaho.di.core.util.EnvUtil;
+import org.pentaho.di.core.util.StringUtil;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepMeta;
+import org.pentaho.di.trans.step.StepMetaInterface;
 import org.pentaho.di.trans.steps.textfileoutput.TextFileOutput;
 
-import java.io.OutputStream;
 
 public class S3FileOutput extends TextFileOutput {
-
-  private FileSystemOptions fsOptions;
 
   public S3FileOutput( StepMeta stepMeta, StepDataInterface stepDataInterface, int copyNr, TransMeta transMeta,
       Trans trans ) {
     super( stepMeta, stepDataInterface, copyNr, transMeta, trans );
   }
 
-  protected FileObject getFileObject( String vfsFilename ) throws KettleFileException {
-    return KettleVFS.getFileObject( vfsFilename, getFsOptions() );
+  @Override public boolean init( StepMetaInterface smi, StepDataInterface sdi ) {
+    init( smi );
+    return super.init( smi, sdi );
   }
 
-  protected FileObject getFileObject( String vfsFilename, VariableSpace space ) throws KettleFileException {
-    return KettleVFS.getFileObject( vfsFilename, space, getFsOptions() );
+  @Override public void markStop() {
+    super.markStop();
+    String accessKeySystemProperty = System.getProperty( S3Util.ACCESS_KEY_SYSTEM_PROPERTY );
+    String secretKeySystemProperty = System.getProperty( S3Util.SECRET_KEY_SYSTEM_PROPERTY );
+
+    if ( !StringUtil.isEmpty( accessKeySystemProperty ) ) {
+      System.setProperty( S3Util.ACCESS_KEY_SYSTEM_PROPERTY, "" );
+    }
+    if ( !StringUtil.isEmpty( secretKeySystemProperty ) ) {
+      System.setProperty( S3Util.SECRET_KEY_SYSTEM_PROPERTY, "" );
+    }
   }
 
-  protected OutputStream getOutputStream( String vfsFilename, VariableSpace space, boolean append )
-    throws KettleFileException {
-    return KettleVFS.getOutputStream( vfsFilename, space, getFsOptions(), append );
-  }
+  @VisibleForTesting
+  void init( StepMetaInterface smi ) {
+    /* For legacy transformations containing AWS S3 access credentials, {@link Const#KETTLE_USE_AWS_DEFAULT_CREDENTIALS} can force Spoon to use
+     * the Amazon Default Credentials Provider Chain instead of using the credentials embedded in the transformation metadata. */
+    if ( !ValueMetaBase.convertStringToBoolean( Const.NVL( EnvUtil.getSystemProperty( Const.KETTLE_USE_AWS_DEFAULT_CREDENTIALS ), "N" ) ) ) {
+      S3FileOutputMeta s3Meta = (S3FileOutputMeta) smi;
 
-  protected FileSystemOptions createFileSystemOptions() throws KettleFileException {
-    try {
-      FileSystemOptions opts = new FileSystemOptions();
-      S3FileOutputMeta s3Meta = (S3FileOutputMeta) meta;
+      String accessKeySystemProperty = System.getProperty( S3Util.ACCESS_KEY_SYSTEM_PROPERTY );
+      String secretKeySystemProperty = System.getProperty( S3Util.SECRET_KEY_SYSTEM_PROPERTY );
 
-      AWSCredentials credentials = null;
-      if ( s3Meta.getUseAwsDefaultCredentials() ) {
-        credentials = S3CredentialsProvider.getAWSCredentials();
-      } else {
-        String accessKey = Encr.decryptPasswordOptionallyEncrypted( environmentSubstitute( s3Meta.getAccessKey() ) );
-        String secretKey = Encr.decryptPasswordOptionallyEncrypted( environmentSubstitute( s3Meta.getSecretKey() ) );
-        credentials = S3CredentialsProvider.getAWSCredentials( accessKey, secretKey );
+      if ( !StringUtil.isEmpty( s3Meta.getAccessKey() ) && StringUtil.isEmpty( accessKeySystemProperty ) ) {
+        System.setProperty( S3Util.ACCESS_KEY_SYSTEM_PROPERTY, environmentSubstitute( s3Meta.getAccessKey() ) );
       }
-
-      DefaultFileSystemConfigBuilder.getInstance().setUserAuthenticator( opts,
-        new StaticUserAuthenticator( null, credentials.getAWSAccessKeyId(), credentials.getAWSSecretKey() ) );
-      return opts;
-    } catch ( FileSystemException e ) {
-      throw new KettleFileException( e );
+      if ( !StringUtil.isEmpty( s3Meta.getSecretKey() ) && StringUtil.isEmpty( secretKeySystemProperty ) ) {
+        System.setProperty( S3Util.SECRET_KEY_SYSTEM_PROPERTY, environmentSubstitute( s3Meta.getSecretKey() ) );
+      }
     }
   }
-
-  protected FileSystemOptions getFsOptions() throws KettleFileException {
-    if ( fsOptions == null ) {
-      fsOptions = createFileSystemOptions();
-    }
-    return fsOptions;
-  }
-
 }

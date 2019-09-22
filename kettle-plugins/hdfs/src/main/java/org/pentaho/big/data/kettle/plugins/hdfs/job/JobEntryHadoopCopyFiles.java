@@ -2,7 +2,7 @@
  *
  * Pentaho Big Data
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -23,12 +23,12 @@
 package org.pentaho.big.data.kettle.plugins.hdfs.job;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.annotations.JobEntry;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.job.entries.copyfiles.JobEntryCopyFiles;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
 import org.pentaho.metastore.api.IMetaStore;
 import org.pentaho.runtime.test.RuntimeTester;
 import org.pentaho.runtime.test.action.RuntimeTestActionService;
@@ -39,7 +39,7 @@ import java.util.Map;
   description = "HadoopCopyFilesPlugin.Description",
   categoryDescription = "i18n:org.pentaho.di.job:JobCategory.Category.BigData",
   i18nPackageName = "org.pentaho.di.job.entries.hadoopcopyfiles",
-  documentationUrl = "http://wiki.pentaho.com/display/EAI/Hadoop+Copy+Files" )
+  documentationUrl = "Products/Hadoop_Copy_Files" )
 public class JobEntryHadoopCopyFiles extends JobEntryCopyFiles {
 
   public static final String S3_SOURCE_FILE = "S3-SOURCE-FILE-";

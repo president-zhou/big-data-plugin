@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -25,6 +25,8 @@ package org.pentaho.big.data.kettle.plugins.kafka;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.pentaho.di.core.row.RowDataUtil;
 import org.pentaho.di.core.row.ValueMetaInterface;
@@ -35,26 +37,34 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static java.util.Comparator.comparingLong;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.maxBy;
+import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerField.Name.OFFSET;
+import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerField.Name.PARTITION;
+import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerField.Name.TOPIC;
 
 public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
 
-  private static Class<?> PKG = KafkaConsumerInputMeta.class; // for i18n purposes, needed by Translator2!!   $NON-NLS-1$
   private final Logger logger = LoggerFactory.getLogger( getClass() );
 
   private final VariableSpace variables;
   private KafkaConsumerInputMeta kafkaConsumerInputMeta;
   private KafkaConsumerInputData kafkaConsumerInputData;
-  private Map<KafkaConsumerField.Name, Integer> positions;
+  private EnumMap<KafkaConsumerField.Name, Integer> positions;
 
   private Consumer consumer;
   private final ExecutorService executorService = Executors.newCachedThreadPool();
@@ -65,7 +75,7 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
                             KafkaConsumerInputData kafkaConsumerInputData, VariableSpace variables,
                             KafkaConsumerInput kafkaStep ) {
     super( kafkaStep );
-    positions = new HashMap<>();
+    positions = new EnumMap<>( KafkaConsumerField.Name.class );
     this.consumer = consumer;
     this.variables = variables;
     this.kafkaConsumerInputData = kafkaConsumerInputData;
@@ -83,7 +93,7 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
     }
 
     List<ValueMetaInterface> valueMetas = kafkaConsumerInputData.outputRowMeta.getValueMetaList();
-    positions = new HashMap<>( valueMetas.size() );
+    positions = new EnumMap<>( KafkaConsumerField.Name.class );
 
     IntStream.range( 0, valueMetas.size() )
       .forEach( idx -> {
@@ -98,7 +108,7 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
         match.ifPresent( name -> positions.put( name, idx ) );
       } );
 
-    callable = new KafkaConsumerCallable( consumer, () -> super.close() );
+    callable = new KafkaConsumerCallable( consumer, super::close );
     future = executorService.submit( callable );
   }
 
@@ -106,15 +116,22 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
     private final AtomicBoolean closed = new AtomicBoolean( false );
     private final Consumer consumer;
     private Runnable onClose;
+    private ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommit = new ConcurrentLinkedQueue<>();
 
     public KafkaConsumerCallable( Consumer consumer, Runnable onClose ) {
       this.consumer = consumer;
       this.onClose = onClose;
     }
 
-    public Void call() {
+    public void queueCommit( Map<TopicPartition, OffsetAndMetadata> offsets ) {
+      toCommit.add( offsets );
+    }
+
+    @Override public Void call() {
       try {
         while ( !closed.get() ) {
+          commitOffsets();
+          @SuppressWarnings( "unchecked" ) //should revisit generic type here
           ConsumerRecords<String, String> records = consumer.poll( 1000 );
 
           List<List<Object>> rows = new ArrayList<>();
@@ -132,8 +149,15 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
         }
         return null;
       } finally {
+        commitOffsets();
         consumer.close();
         onClose.run();
+      }
+    }
+
+    private void commitOffsets() {
+      while ( !toCommit.isEmpty() ) {
+        consumer.commitSync( toCommit.poll() );
       }
     }
 
@@ -142,6 +166,24 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
       closed.set( true );
       consumer.wakeup();
     }
+
+  }
+
+  public void commitOffsets( List<List<Object>> rows ) {
+    Map<Object, Map<Object, Optional<List<Object>>>> maxRows = rows.stream().collect(
+      groupingBy(
+        row -> row.get( positions.get( TOPIC ) ),
+        groupingBy(
+          row -> row.get( positions.get( PARTITION ) ),
+          maxBy( comparingLong( row -> (long) row.get( positions.get( OFFSET ) ) ) ) ) ) );
+
+    Map<TopicPartition, OffsetAndMetadata> offsets =
+      maxRows.values().stream().flatMap( m -> m.values().stream() ).map( Optional::get ).collect(
+        Collectors.toMap( row -> new TopicPartition( (String) row.get( positions.get( TOPIC ) ),
+            ( (Long) row.get( positions.get( PARTITION ) ) ).intValue() ),
+          row -> new OffsetAndMetadata( (long) row.get( positions.get( OFFSET ) ) + 1 ) )
+      );
+    callable.queueCommit( offsets );
   }
 
   List<Object> processMessageAsRow( ConsumerRecord<String, String> record ) {
@@ -155,16 +197,16 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
       rowData[ positions.get( KafkaConsumerField.Name.MESSAGE ) ] = record.value();
     }
 
-    if ( positions.get( KafkaConsumerField.Name.TOPIC ) != null ) {
-      rowData[ positions.get( KafkaConsumerField.Name.TOPIC ) ] = record.topic();
+    if ( positions.get( TOPIC ) != null ) {
+      rowData[ positions.get( TOPIC ) ] = record.topic();
     }
 
-    if ( positions.get( KafkaConsumerField.Name.PARTITION ) != null ) {
-      rowData[ positions.get( KafkaConsumerField.Name.PARTITION ) ] = (long) record.partition();
+    if ( positions.get( PARTITION ) != null ) {
+      rowData[ positions.get( PARTITION ) ] = (long) record.partition();
     }
 
-    if ( positions.get( KafkaConsumerField.Name.OFFSET ) != null ) {
-      rowData[ positions.get( KafkaConsumerField.Name.OFFSET ) ] = record.offset();
+    if ( positions.get( OFFSET ) != null ) {
+      rowData[ positions.get( OFFSET ) ] = record.offset();
     }
 
     if ( positions.get( KafkaConsumerField.Name.TIMESTAMP ) != null ) {

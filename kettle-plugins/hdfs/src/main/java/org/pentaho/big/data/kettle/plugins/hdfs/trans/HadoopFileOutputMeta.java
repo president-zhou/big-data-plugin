@@ -2,7 +2,7 @@
  *
  * Pentaho Big Data
  *
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,30 +22,34 @@
 
 package org.pentaho.big.data.kettle.plugins.hdfs.trans;
 
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.annotations.Step;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.injection.InjectionSupported;
+import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.variables.Variables;
 import org.pentaho.di.core.xml.XMLHandler;
 import org.pentaho.di.metastore.MetaStoreConst;
 import org.pentaho.di.repository.ObjectId;
 import org.pentaho.di.repository.Repository;
+import org.pentaho.di.resource.ResourceNamingInterface;
 import org.pentaho.di.trans.steps.textfileoutput.TextFileOutputMeta;
 import org.pentaho.metastore.api.IMetaStore;
 import org.pentaho.runtime.test.RuntimeTester;
 import org.pentaho.runtime.test.action.RuntimeTestActionService;
 import org.w3c.dom.Node;
 
+import java.util.Map;
+
 @Step( id = "HadoopFileOutputPlugin", image = "HDO.svg", name = "HadoopFileOutputPlugin.Name",
     description = "HadoopFileOutputPlugin.Description",
-    documentationUrl = "http://wiki.pentaho.com/display/EAI/Hadoop+File+Output",
+    documentationUrl = "Products/Hadoop_File_Output",
     categoryDescription = "i18n:org.pentaho.di.trans.step:BaseStep.Category.BigData",
     i18nPackageName = "org.pentaho.di.trans.steps.hadoopfileoutput" )
 @InjectionSupported( localizationPrefix = "HadoopFileOutput.Injection.", groups = { "OUTPUT_FIELDS" } )
-public class HadoopFileOutputMeta extends TextFileOutputMeta {
+public class HadoopFileOutputMeta extends TextFileOutputMeta implements HadoopFileMeta {
 
   // for message resolution
   private static Class<?> PKG = HadoopFileOutputMeta.class;
@@ -109,20 +113,37 @@ public class HadoopFileOutputMeta extends TextFileOutputMeta {
       // if we already have a metastore use it
       metaStore = metastore;
     }
-    NamedCluster c = null;
-    if ( metaStore != null ) {
-      // If we have a metastore get the cluster from it.
-      c = namedClusterService.getNamedClusterByName( sourceConfigurationName, metaStore );
-    } else {
-      // Still no metastore, try to make a named cluster from the embedded xml
-      if ( namedClusterService.getClusterTemplate() != null ) {
-        c = namedClusterService.getClusterTemplate().fromXmlForEmbed( embeddedNamedClusterNode );
-      }
-    }
+    NamedCluster c = getNamedCluster();
     if ( c != null ) {
       url = c.processURLsubstitution( url, metaStore, new Variables() );
     }
     return url;
+  }
+
+  @Override
+  public String getClusterName( final String url ) {
+    final NamedCluster cluster = getNamedCluster();
+    return cluster == null ? null : cluster.getName();
+  }
+
+
+  public NamedCluster getNamedCluster() {
+
+    NamedCluster cluster = null;
+    if ( metaStore != null ) {
+      // If we have a metastore get the cluster from it.
+      cluster = namedClusterService.getNamedClusterByName( sourceConfigurationName, metaStore );
+    } else {
+      // Still no metastore, try to make a named cluster from the embedded xml
+      if ( namedClusterService.getClusterTemplate() != null ) {
+        cluster = namedClusterService.getClusterTemplate().fromXmlForEmbed( embeddedNamedClusterNode );
+      }
+    }
+    return cluster;
+  }
+
+  public String getUrlPath( String incomingURL ) {
+    return getProcessedUrl( null, incomingURL );
   }
 
   protected void saveSource( StringBuilder retVal, String fileName ) {
@@ -165,5 +186,12 @@ public class HadoopFileOutputMeta extends TextFileOutputMeta {
 
   public RuntimeTestActionService getRuntimeTestActionService() {
     return runtimeTestActionService;
+  }
+
+  @Override
+  public String exportResources( VariableSpace space, Map<String, org.pentaho.di.resource.ResourceDefinition>
+          definitions, ResourceNamingInterface resourceNamingInterface, Repository repository, IMetaStore metaStore )
+          throws KettleException {
+    return null;
   }
 }

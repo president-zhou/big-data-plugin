@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2019-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -21,31 +21,24 @@
  ******************************************************************************/
 package org.pentaho.big.data.kettle.plugins.formats.impl.orc.input;
 
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
-import org.pentaho.big.data.api.cluster.service.locator.NamedClusterServiceLocator;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterServiceLocator;
+import org.pentaho.big.data.kettle.plugins.formats.impl.NamedClusterResolver;
 import org.pentaho.big.data.kettle.plugins.formats.orc.input.OrcInputMetaBase;
 import org.pentaho.di.core.annotations.Step;
-import org.pentaho.di.core.exception.KettlePluginException;
-import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.injection.InjectionSupported;
-import org.pentaho.di.core.row.RowMetaInterface;
-import org.pentaho.di.core.row.ValueMetaInterface;
-import org.pentaho.di.core.row.value.ValueMetaFactory;
-import org.pentaho.di.core.variables.VariableSpace;
-import org.pentaho.di.repository.Repository;
+import org.pentaho.di.core.osgi.api.MetastoreLocatorOsgi;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
-import org.pentaho.hadoop.shim.api.format.IOrcInputField;
-import org.pentaho.metastore.api.IMetaStore;
 
 //keep ID as new because we will have old step with ID OrcInput
 @Step( id = "OrcInput", image = "OI.svg", name = "OrcInput.Name", description = "OrcInput.Description",
     categoryDescription = "i18n:org.pentaho.di.trans.step:BaseStep.Category.BigData",
-    documentationUrl = "Products/Data_Integration/Transformation_Step_Reference/Orc_Input",
+    documentationUrl = "Products/ORC_Input",
     i18nPackageName = "org.pentaho.di.trans.steps.orc" )
 @InjectionSupported( localizationPrefix = "OrcInput.Injection.", groups = { "FILENAME_LINES", "FIELDS" }, hide = {
   "FILEMASK", "EXCLUDE_FILEMASK", "FILE_REQUIRED", "INCLUDE_SUBFOLDERS", "FIELD_POSITION", "FIELD_LENGTH",
@@ -64,11 +57,13 @@ public class OrcInputMeta extends OrcInputMetaBase {
 
   private final NamedClusterServiceLocator namedClusterServiceLocator;
   private final NamedClusterService namedClusterService;
+  private MetastoreLocatorOsgi metaStoreService;
 
   public OrcInputMeta( NamedClusterServiceLocator namedClusterServiceLocator,
-      NamedClusterService namedClusterService ) {
+                       NamedClusterService namedClusterService, MetastoreLocatorOsgi metaStore ) {
     this.namedClusterServiceLocator = namedClusterServiceLocator;
     this.namedClusterService = namedClusterService;
+    this.metaStoreService = metaStore;
   }
 
   @Override
@@ -83,40 +78,18 @@ public class OrcInputMeta extends OrcInputMetaBase {
   }
 
   public NamedCluster getNamedCluster() {
-    return namedClusterService.getClusterTemplate();
+    NamedCluster namedCluster =
+      NamedClusterResolver.resolveNamedCluster( namedClusterServiceLocator, namedClusterService, metaStoreService, this.getFilename() );
+    return namedCluster;
+  }
+
+  public NamedCluster getNamedCluster( String fileUri ) {
+    NamedCluster namedCluster =
+      NamedClusterResolver.resolveNamedCluster( namedClusterServiceLocator, namedClusterService, metaStoreService, fileUri );
+    return namedCluster;
   }
 
   public NamedClusterServiceLocator getNamedClusterServiceLocator() {
     return namedClusterServiceLocator;
-  }
-
-  @Override
-  public void getFields( RowMetaInterface rowMeta, String origin, RowMetaInterface[] info, StepMeta nextStep,
-                        VariableSpace space, Repository repository, IMetaStore metaStore ) throws
-          KettleStepException {
-    try {
-      if ( !inputFiles.passingThruFields ) {
-        // all incoming fields are not transmitted !
-        rowMeta.clear();
-      } else {
-        if ( info != null ) {
-          boolean found = false;
-          for ( int i = 0; i < info.length && !found; i++ ) {
-            if ( info[i] != null ) {
-              rowMeta.mergeRowMeta( info[i], origin );
-              found = true;
-            }
-          }
-        }
-      }
-      for ( IOrcInputField field : getInputFields() ) {
-        String value = space.environmentSubstitute( field.getPentahoFieldName() );
-        ValueMetaInterface v = ValueMetaFactory.createValueMeta( value, field.getPentahoType() );
-        v.setOrigin( origin );
-        rowMeta.addValueMeta( v );
-      }
-    } catch ( KettlePluginException e ) {
-      throw new KettleStepException( "Unable to create value type", e );
-    }
   }
 }

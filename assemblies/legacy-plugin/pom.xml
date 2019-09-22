@@ -5,10 +5,10 @@
   <parent>
     <groupId>pentaho</groupId>
     <artifactId>pentaho-big-data-assemblies</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
   <artifactId>pentaho-big-data-plugin</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <licenses>
     <license>
@@ -26,6 +26,25 @@
   <properties>
     <publish-sonar-phase>site</publish-sonar-phase>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- SLF4J logging for PDI non-OSGi plugins should rely on the jars being provided in data-integration/lib -->
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>${slf4j.version}</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-log4j12</artifactId>
+        <version>${slf4j.version}</version>
+        <scope>provided</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <dependency>
       <groupId>pentaho</groupId>
@@ -50,55 +69,62 @@
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-iam</artifactId>
-      <version>${aws-java-sdk.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
+          <groupId>com.amazonaws</groupId>
+          <artifactId>jmespath-java</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-core</artifactId>
-      <version>${aws-java-sdk.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
+          <groupId>com.fasterxml.jackson.dataformat</groupId>
+          <artifactId>jackson-dataformat-cbor</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-databind</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>software.amazon.ion</groupId>
+          <artifactId>ion-java</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-emr</artifactId>
-      <version>${aws-java-sdk.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
+          <groupId>com.amazonaws</groupId>
+          <artifactId>jmespath-java</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-pricing</artifactId>
-      <version>${aws-java-sdk.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
+          <groupId>com.amazonaws</groupId>
+          <artifactId>jmespath-java</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-s3</artifactId>
-      <version>${aws-java-sdk.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
+          <groupId>com.amazonaws</groupId>
+          <artifactId>aws-java-sdk-kms</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.amazonaws</groupId>
+          <artifactId>jmespath-java</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -164,16 +190,6 @@
       <version>${dependency.libthrift.revision}</version>
     </dependency>
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
-      <version>${dependency.slf4j.revision}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-log4j12</artifactId>
-      <version>${dependency.slf4j.revision}</version>
-    </dependency>
-    <dependency>
       <groupId>xmlpull</groupId>
       <artifactId>xmlpull</artifactId>
       <version>${dependency.xmlpull.revision}</version>
@@ -190,8 +206,8 @@
     </dependency>
     <dependency>
       <groupId>org.pentaho</groupId>
-      <artifactId>pentaho-hadoop-shims-cdh513-package</artifactId>
-      <version>${pentaho-hadoop-shims-cdh513.version}</version>
+      <artifactId>pentaho-hadoop-shims-cdh61-pmr-libs</artifactId>
+      <version>${pentaho-hadoop-shims-cdh61.version}</version>
       <type>zip</type>
       <scope>provided</scope>
       <exclusions>
@@ -203,7 +219,20 @@
     </dependency>
     <dependency>
       <groupId>org.pentaho</groupId>
-      <artifactId>pentaho-hadoop-shims-hdp26-package</artifactId>
+      <artifactId>pentaho-hadoop-shims-cdh514-pmr-libs</artifactId>
+      <version>${pentaho-hadoop-shims-cdh514.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho</groupId>
+      <artifactId>pentaho-hadoop-shims-hdp26-pmr-libs</artifactId>
       <version>${pentaho-hadoop-shims-hdp26.version}</version>
       <type>zip</type>
       <scope>provided</scope>
@@ -216,8 +245,8 @@
     </dependency>
     <dependency>
       <groupId>org.pentaho</groupId>
-      <artifactId>pentaho-hadoop-shims-mapr60-package</artifactId>
-      <version>${pentaho-hadoop-shims-mapr60.version}</version>
+      <artifactId>pentaho-hadoop-shims-hdp30-pmr-libs</artifactId>
+      <version>${pentaho-hadoop-shims-hdp30.version}</version>
       <type>zip</type>
       <scope>provided</scope>
       <exclusions>
@@ -229,8 +258,8 @@
     </dependency>
     <dependency>
       <groupId>org.pentaho</groupId>
-      <artifactId>pentaho-hadoop-shims-emr511-package</artifactId>
-      <version>${pentaho-hadoop-shims-emr511.version}</version>
+      <artifactId>pentaho-hadoop-shims-emr521-pmr-libs</artifactId>
+      <version>${pentaho-hadoop-shims-emr521.version}</version>
       <type>zip</type>
       <scope>provided</scope>
       <exclusions>
@@ -286,25 +315,31 @@
               <artifactItems>
                 <artifactItem>
                   <groupId>org.pentaho</groupId>
-                  <artifactId>pentaho-hadoop-shims-cdh513-package</artifactId>
+                  <artifactId>pentaho-hadoop-shims-cdh61-pmr-libs</artifactId>
                   <type>zip</type>
                   <outputDirectory>${basedir}/target/plugins/pentaho-big-data-plugin/hadoop-configurations</outputDirectory>
                 </artifactItem>
                 <artifactItem>
                   <groupId>org.pentaho</groupId>
-                  <artifactId>pentaho-hadoop-shims-hdp26-package</artifactId>
+                  <artifactId>pentaho-hadoop-shims-cdh514-pmr-libs</artifactId>
                   <type>zip</type>
                   <outputDirectory>${basedir}/target/plugins/pentaho-big-data-plugin/hadoop-configurations</outputDirectory>
                 </artifactItem>
                 <artifactItem>
                   <groupId>org.pentaho</groupId>
-                  <artifactId>pentaho-hadoop-shims-mapr60-package</artifactId>
+                  <artifactId>pentaho-hadoop-shims-hdp26-pmr-libs</artifactId>
                   <type>zip</type>
                   <outputDirectory>${basedir}/target/plugins/pentaho-big-data-plugin/hadoop-configurations</outputDirectory>
                 </artifactItem>
                 <artifactItem>
                   <groupId>org.pentaho</groupId>
-                  <artifactId>pentaho-hadoop-shims-emr511-package</artifactId>
+                  <artifactId>pentaho-hadoop-shims-hdp30-pmr-libs</artifactId>
+                  <type>zip</type>
+                  <outputDirectory>${basedir}/target/plugins/pentaho-big-data-plugin/hadoop-configurations</outputDirectory>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.pentaho</groupId>
+                  <artifactId>pentaho-hadoop-shims-emr521-pmr-libs</artifactId>
                   <type>zip</type>
                   <outputDirectory>${basedir}/target/plugins/pentaho-big-data-plugin/hadoop-configurations</outputDirectory>
                 </artifactItem>
@@ -315,7 +350,6 @@
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>${maven-assembly-plugin.version}</version>
         <executions>
           <execution>
             <id>pkg</id>

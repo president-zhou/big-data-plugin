@@ -43,6 +43,7 @@ import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableItem;
 import org.pentaho.big.data.kettle.plugins.formats.impl.NullableValuesEnum;
 import org.pentaho.big.data.kettle.plugins.formats.impl.parquet.BaseParquetStepDialog;
+import org.pentaho.big.data.kettle.plugins.formats.parquet.ParquetTypeConverter;
 import org.pentaho.big.data.kettle.plugins.formats.parquet.output.ParquetOutputField;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.Props;
@@ -101,16 +102,17 @@ public class ParquetOutputDialog extends BaseParquetStepDialog<ParquetOutputMeta
   private ComboVar wDateTimeFormat;
 
   private static final ParquetSpec.DataType[] SUPPORTED_PARQUET_TYPES = {
-    ParquetSpec.DataType.UTF8,
+    ParquetSpec.DataType.BINARY,
+    ParquetSpec.DataType.BOOLEAN,
+    ParquetSpec.DataType.DATE,
+    ParquetSpec.DataType.DECIMAL,
+    ParquetSpec.DataType.DOUBLE,
+    ParquetSpec.DataType.FLOAT,
     ParquetSpec.DataType.INT_32,
     ParquetSpec.DataType.INT_64,
-    ParquetSpec.DataType.FLOAT,
-    ParquetSpec.DataType.DOUBLE,
-    ParquetSpec.DataType.BOOLEAN,
-    ParquetSpec.DataType.DECIMAL,
-    ParquetSpec.DataType.DATE,
+    ParquetSpec.DataType.INT_96,
     ParquetSpec.DataType.TIMESTAMP_MILLIS,
-    ParquetSpec.DataType.BINARY
+    ParquetSpec.DataType.UTF8
   };
 
 
@@ -582,7 +584,7 @@ public class ParquetOutputDialog extends BaseParquetStepDialog<ParquetOutputMeta
           tableItem.setText( nameColumn[ c ], Const.NVL( v.getName(), "" ) );
         }
 
-        String parquetTypeName = meta.convertToParquetType( v.getType() );
+        String parquetTypeName = ParquetTypeConverter.convertToParquetType( v.getType() );
         if ( dataTypeColumn != null ) {
           for ( int c = 0; c < dataTypeColumn.length; c++ ) {
             tableItem.setText( dataTypeColumn[ c ], parquetTypeName );

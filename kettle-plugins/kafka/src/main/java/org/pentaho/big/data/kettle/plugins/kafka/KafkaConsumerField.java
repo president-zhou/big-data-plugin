@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -38,15 +38,21 @@ import org.pentaho.di.i18n.BaseMessages;
  * Created by rfellows on 6/15/17.
  */
 public class KafkaConsumerField {
-  private static Class<?> PKG = KafkaConsumerField.class;
+  private static final Class<?> PKG = KafkaConsumerField.class;
 
   private Name kafkaName;
-  @Injection( name = "OUTPUT_NAME" )
+  @Injection ( name = "OUTPUT_NAME" )
   private String outputName;
-  @Injection( name = "TYPE" )
+  @Injection ( name = "TYPE" )
   private Type outputType = Type.String;
 
   public KafkaConsumerField() {
+  }
+
+  public KafkaConsumerField( KafkaConsumerField orig ) {
+    this.kafkaName = orig.kafkaName;
+    this.outputName = orig.outputName;
+    this.outputType = orig.outputType;
   }
 
   public KafkaConsumerField( Name kafkaName, String outputName ) {
@@ -83,6 +89,8 @@ public class KafkaConsumerField {
     this.outputType = outputType;
   }
 
+  // constants below violate naming convention, but can't fix it due to impact to ktrs
+  @SuppressWarnings ( "all" )
   public enum Type {
     String( "String", ValueMetaInterface.TYPE_STRING, StringSerializer.class, StringDeserializer.class ),
     Integer( "Integer", ValueMetaInterface.TYPE_INTEGER, LongSerializer.class, LongDeserializer.class ),
@@ -91,8 +99,8 @@ public class KafkaConsumerField {
 
     private final String value;
     private final int valueMetaInterfaceType;
-    private Class kafkaSerializerClass;
-    private Class kafkaDeserializerClass;
+    private final Class kafkaSerializerClass;
+    private final Class kafkaDeserializerClass;
 
     Type( String value, int valueMetaInterfaceType, Class kafkaSerializerClass, Class kafkaDeserializerClass ) {
       this.value = value;
@@ -101,13 +109,10 @@ public class KafkaConsumerField {
       this.kafkaDeserializerClass = kafkaDeserializerClass;
     }
 
-    public String toString() {
+    @Override public String toString() {
       return value;
     }
 
-    boolean isEqual( String value ) {
-      return this.value.equals( value );
-    }
     public int getValueMetaInterfaceType() {
       return valueMetaInterfaceType;
     }
@@ -197,14 +202,13 @@ public class KafkaConsumerField {
       this.name = name;
     }
 
-    public String toString() {
-      return name.toString();
-    }
-    boolean isEqual( String name ) {
-      return this.name.equals( name );
+    @Override public String toString() {
+      return name;
     }
 
+
     public abstract void setFieldOnMeta( KafkaConsumerInputMeta meta, KafkaConsumerField field );
+
     public abstract KafkaConsumerField getFieldFromMeta( KafkaConsumerInputMeta meta );
   }
 

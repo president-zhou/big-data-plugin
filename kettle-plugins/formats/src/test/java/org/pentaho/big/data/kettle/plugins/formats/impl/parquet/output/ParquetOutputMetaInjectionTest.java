@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -25,12 +25,13 @@ package org.pentaho.big.data.kettle.plugins.formats.impl.parquet.output;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
 
-import org.pentaho.big.data.api.cluster.NamedClusterService;
-import org.pentaho.big.data.api.cluster.service.locator.NamedClusterServiceLocator;
-import org.pentaho.big.data.kettle.plugins.formats.parquet.output.ParquetOutputMetaBase;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterServiceLocator;
+import org.pentaho.big.data.kettle.plugins.formats.parquet.ParquetTypeConverter;
 import org.pentaho.di.core.injection.BaseMetadataInjectionTest;
+import org.pentaho.di.core.osgi.api.MetastoreLocatorOsgi;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.hadoop.shim.api.format.ParquetSpec;
 
@@ -40,8 +41,9 @@ public class ParquetOutputMetaInjectionTest extends BaseMetadataInjectionTest<Pa
   public void setup() {
     NamedClusterService namedClusterService = mock( NamedClusterService.class );
     NamedClusterServiceLocator namedClusterServiceLocator = mock( NamedClusterServiceLocator.class );
+    MetastoreLocatorOsgi metaStoreService = mock( MetastoreLocatorOsgi.class );
     setup( new ParquetOutputMeta( namedClusterServiceLocator,
-      namedClusterService ) );
+      namedClusterService, metaStoreService ) );
   }
 
   @Test
@@ -121,7 +123,7 @@ public class ParquetOutputMetaInjectionTest extends BaseMetadataInjectionTest<Pa
     int[] typeIds = new int[ supportedPdiTypes.length ];
     for ( int j = 0; j < supportedPdiTypes.length; j++ ) {
       typeNames[ j ] = ValueMetaInterface.getTypeDescription( supportedPdiTypes[ j ] );
-      String parquetTypeName = ParquetOutputMetaBase.convertToParquetType( supportedPdiTypes[ j ] );
+      String parquetTypeName = ParquetTypeConverter.convertToParquetType( supportedPdiTypes[ j ] );
       for ( ParquetSpec.DataType parquetType : ParquetSpec.DataType.values() ) {
         if ( parquetType.getName().equals( parquetTypeName ) ) {
           typeIds[ j ] = parquetType.getId();

@@ -2,7 +2,7 @@
  *
  * Pentaho Big Data
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -23,19 +23,27 @@
 package org.pentaho.big.data.plugins.common.ui;
 
 import org.eclipse.swt.widgets.Shell;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.variables.Variables;
 import org.pentaho.di.i18n.BaseMessages;
 import org.pentaho.di.ui.spoon.Spoon;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
 import org.pentaho.metastore.api.IMetaStore;
 import org.pentaho.metastore.api.exceptions.MetaStoreException;
 import org.pentaho.metastore.stores.delegate.DelegatingMetaStore;
+import org.pentaho.metastore.stores.xml.XmlMetaStore;
 import org.pentaho.runtime.test.RuntimeTester;
 import org.pentaho.runtime.test.action.RuntimeTestActionService;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -69,9 +77,10 @@ public class HadoopClusterDelegateImplTest {
   private CommonDialogFactory commonDialogFactory;
   private Shell shell;
   private VariableSpace variables;
+  private Path tempDirectoryName;
 
   @Before
-  public void setup() {
+  public void setup() throws IOException {
     spoon = mock( Spoon.class );
     shell = mock( Shell.class );
     when( spoon.getShell() ).thenReturn( shell );
@@ -87,6 +96,28 @@ public class HadoopClusterDelegateImplTest {
     hadoopClusterDelegate =
       new HadoopClusterDelegateImpl( spoon, namedClusterService, runtimeTestActionService, runtimeTester,
         commonDialogFactory );
+    // avoid putting test data in the local user's metastore
+    tempDirectoryName = Files.createTempDirectory( this.getClass().getName() );
+    System.setProperty( "user.home", tempDirectoryName.toString() );
+    String configurationDirectory =
+      System.getProperty( "user.home" ) + File.separator + ".pentaho" + File.separator + "metastore" + File.separator
+        + "pentaho" + File.separator + "NamedCluster" + File.separator + "Configs";
+    Files.createDirectories( Paths.get( configurationDirectory + "/" + namedClusterName ) );
+  }
+
+  @After
+  public void tearDown() {
+    deleteDirectory( tempDirectoryName.toFile() );
+  }
+
+  private boolean deleteDirectory( File directoryToBeDeleted) {
+    File[] allContents = directoryToBeDeleted.listFiles();
+    if (allContents != null) {
+      for (File file : allContents) {
+        deleteDirectory(file);
+      }
+    }
+    return directoryToBeDeleted.delete();
   }
 
   @Test
@@ -120,13 +151,17 @@ public class HadoopClusterDelegateImplTest {
   }
 
   @Test
-  public void testDupeNamedClusterNullMetastore() throws MetaStoreException {
+  public void testDupeNamedClusterNullMetastore() throws MetaStoreException, IOException {
     String newName = "newName";
     NamedClusterDialogImpl namedClusterDialog = mock( NamedClusterDialogImpl.class );
     NamedCluster clonedNamedCluster = mock( NamedCluster.class );
     DelegatingMetaStore spoonMetastore = mock( DelegatingMetaStore.class );
+    XmlMetaStore xmlMetaStore = mock( XmlMetaStore.class );
     when( spoon.getMetaStore() ).thenReturn( spoonMetastore );
+    when( spoonMetastore.getActiveMetaStore() ).thenReturn( xmlMetaStore );
     when( namedCluster.clone() ).thenReturn( clonedNamedCluster );
+    when( namedCluster.getShimIdentifier() ).thenReturn( "oldShimId" );
+    when( clonedNamedCluster.getShimIdentifier() ).thenReturn( "shimId" );
     when( commonDialogFactory
       .createNamedClusterDialog( shell, namedClusterService, runtimeTestActionService, runtimeTester,
         clonedNamedCluster ) ).thenReturn( namedClusterDialog );
@@ -138,7 +173,7 @@ public class HadoopClusterDelegateImplTest {
     verify( clonedNamedCluster ).setName(
       BaseMessages.getString( Spoon.class, HadoopClusterDelegateImpl.SPOON_VARIOUS_DUPE_NAME ) + namedClusterName );
     verify( namedClusterService ).create( clonedNamedCluster, spoonMetastore );
-    verify( spoon ).refreshTree();
+    verify( spoon ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
   }
 
   @Test
@@ -146,7 +181,7 @@ public class HadoopClusterDelegateImplTest {
     when( namedClusterService.read( namedClusterName, metaStore ) ).thenReturn( namedCluster );
     hadoopClusterDelegate.delNamedCluster( metaStore, namedCluster );
     verify( namedClusterService ).delete( namedClusterName, metaStore );
-    verify( spoon ).refreshTree();
+    verify( spoon ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
     verify( spoon ).setShellText();
   }
 
@@ -155,7 +190,7 @@ public class HadoopClusterDelegateImplTest {
     when( namedClusterService.read( namedClusterName, metaStore ) ).thenReturn( null );
     hadoopClusterDelegate.delNamedCluster( metaStore, namedCluster );
     verify( namedClusterService, never() ).delete( namedClusterName, metaStore );
-    verify( spoon ).refreshTree();
+    verify( spoon ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
     verify( spoon ).setShellText();
   }
 
@@ -166,7 +201,7 @@ public class HadoopClusterDelegateImplTest {
     when( namedClusterService.read( namedClusterName, metaStore2 ) ).thenReturn( namedCluster );
     hadoopClusterDelegate.delNamedCluster( null, namedCluster );
     verify( namedClusterService ).delete( namedClusterName, metaStore2 );
-    verify( spoon ).refreshTree();
+    verify( spoon ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
     verify( spoon ).setShellText();
   }
 
@@ -177,11 +212,11 @@ public class HadoopClusterDelegateImplTest {
     doThrow( metaStoreException ).when( namedClusterService ).delete( namedClusterName, metaStore );
     hadoopClusterDelegate.delNamedCluster( metaStore, namedCluster );
     verify( commonDialogFactory ).createErrorDialog( shell, BaseMessages.getString( PKG,
-        HadoopClusterDelegateImpl.SPOON_DIALOG_ERROR_DELETING_NAMED_CLUSTER_TITLE ), BaseMessages
+      HadoopClusterDelegateImpl.SPOON_DIALOG_ERROR_DELETING_NAMED_CLUSTER_TITLE ), BaseMessages
         .getString( PKG,
           HadoopClusterDelegateImpl.SPOON_DIALOG_ERROR_DELETING_NAMED_CLUSTER_MESSAGE, namedClusterName ),
       metaStoreException );
-    verify( spoon ).refreshTree();
+    verify( spoon ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
     verify( spoon ).setShellText();
   }
 
@@ -194,19 +229,21 @@ public class HadoopClusterDelegateImplTest {
     NamedCluster clonedNamedCluster = mock( NamedCluster.class );
     when( namedClusterService.read( namedClusterName, spoonMetastore ) ).thenReturn( namedCluster );
     when( namedCluster.clone() ).thenReturn( clonedNamedCluster );
+    String shimId = "shimId";
+    when( namedCluster.getShimIdentifier() ).thenReturn( shimId );
     when( commonDialogFactory
       .createNamedClusterDialog( shell, namedClusterService, runtimeTestActionService, runtimeTester,
         clonedNamedCluster ) ).thenReturn( namedClusterDialog );
     String clonedName = "clonedName";
     when( clonedNamedCluster.getName() ).thenReturn( clonedName );
+    when( clonedNamedCluster.getShimIdentifier() ).thenReturn( shimId );
     when( namedClusterDialog.open() ).thenReturn( clonedName );
     when( namedClusterDialog.getNamedCluster() ).thenReturn( clonedNamedCluster );
 
     assertEquals( clonedName, hadoopClusterDelegate.editNamedCluster( null, namedCluster, shell ) );
 
     verify( namedClusterDialog ).setNewClusterCheck( false );
-    verify( spoon ).refreshTree();
-    verify( namedClusterService ).delete( namedClusterName, spoonMetastore );
+    verify( spoon ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
     verify( namedClusterService ).create( clonedNamedCluster, spoonMetastore );
   }
 
@@ -244,7 +281,7 @@ public class HadoopClusterDelegateImplTest {
     verify( namedClusterDialog ).setNewClusterCheck( true );
     verify( namedCluster ).shareVariablesWith( variables );
     verify( namedClusterService ).create( namedCluster, spoonMetastore );
-    verify( spoon ).refreshTree();
+    verify( spoon ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
   }
 
   @Test
@@ -261,7 +298,7 @@ public class HadoopClusterDelegateImplTest {
     verify( namedClusterDialog ).setNewClusterCheck( true );
     verify( namedCluster ).initializeVariablesFrom( null );
     verify( namedClusterService ).create( namedCluster, metaStore );
-    verify( spoon ).refreshTree();
+    verify( spoon ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
   }
 
   @Test
@@ -277,7 +314,7 @@ public class HadoopClusterDelegateImplTest {
 
     verify( namedClusterDialog ).setNewClusterCheck( true );
     verify( namedClusterService, times( 0 ) ).create( any( NamedCluster.class ), any( IMetaStore.class ) );
-    verify( spoon, times( 0 ) ).refreshTree();
+    verify( spoon, times( 0 ) ).refreshTree( HadoopClusterDelegateImpl.STRING_NAMED_CLUSTERS );
   }
 
   @Test

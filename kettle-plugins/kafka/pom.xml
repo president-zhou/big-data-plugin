@@ -5,10 +5,10 @@
   <parent>
     <groupId>pentaho</groupId>
     <artifactId>pentaho-big-data-kettle-plugins</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
   <artifactId>pentaho-big-data-kettle-plugins-kafka</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>bundle</packaging>
   <name>Pentaho Community Edition Project: ${project.artifactId}</name>
   <description>a Pentaho open source project</description>
@@ -16,7 +16,13 @@
   <properties>
     <publish-sonar-phase>site</publish-sonar-phase>
     <!-- Dependency versions -->
-    <pentaho-metaverse.version>8.1.0.0-SNAPSHOT</pentaho-metaverse.version>
+    <pentaho-metaverse.version>9.0.0.0-SNAPSHOT</pentaho-metaverse.version>
+    <pentaho-mongodb-plugin.version>9.0.0.0-SNAPSHOT</pentaho-mongodb-plugin.version>
+    <dependency.org.powermock.version>1.6.0</dependency.org.powermock.version>
+    <dependency.com.tinkerpop.frames.version>2.5.0</dependency.com.tinkerpop.frames.version>
+    <dependency.com.tinkerpop.blueprints.version>2.6.0</dependency.com.tinkerpop.blueprints.version>
+    <dependency.mockito.version>1.9.5-rc1</dependency.mockito.version>
+    <osgi.version>5.0.0</osgi.version>
   </properties>
   <dependencies>
     <dependency>
@@ -44,6 +50,12 @@
       <artifactId>pentaho-metaverse-api</artifactId>
       <version>${pentaho-metaverse.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.pentaho</groupId>
+      <artifactId>shim-api</artifactId>
+      <version>${pentaho-hadoop-shims.version}</version>
+    </dependency>
+
 
     <dependency>
       <groupId>org.apache.kafka</groupId>
@@ -52,28 +64,11 @@
     </dependency>
     <dependency>
       <groupId>pentaho</groupId>
-      <artifactId>pentaho-big-data-api-cluster</artifactId>
-      <version>${project.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>pentaho</groupId>
-      <artifactId>pentaho-big-data-api-cluster-service-locator</artifactId>
-      <version>${project.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>pentaho</groupId>
       <artifactId>pentaho-metastore-locator-api</artifactId>
-      <version>${metastore.version}</version>
+      <version>${pentaho-osgi-bundles.version}</version>
       <scope>provided</scope>
     </dependency>
-    <dependency>
-      <groupId>pentaho</groupId>
-      <artifactId>pentaho-big-data-api-jaas</artifactId>
-      <version>${project.version}</version>
-      <scope>provided</scope>
-    </dependency>
+
     <!--
       kafka-clients wants to bring in a slightly newer version of slf4j-api than we currently provide in our karaf instance.
       so, we force the correct version here (via dependency mgt) to avoid conflicts at startup
@@ -81,14 +76,13 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-      <version>${dependency.slf4j.revision}</version>
     </dependency>
 
     <!-- test dependencies -->
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-all</artifactId>
-      <version>${dependency.mockito.revision}</version>
+      <version>${dependency.mockito.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -103,6 +97,48 @@
       <version>${pdi.version}</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>pentaho</groupId>
+      <artifactId>pentaho-metaverse-core</artifactId>
+      <version>${pdi.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.tinkerpop</groupId>
+      <artifactId>frames</artifactId>
+      <version>${dependency.com.tinkerpop.frames.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.tinkerpop.blueprints</groupId>
+      <artifactId>blueprints-core</artifactId>
+      <version>${dependency.com.tinkerpop.blueprints.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-core</artifactId>
+      <version>${dependency.org.powermock.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-module-junit4</artifactId>
+      <version>${dependency.org.powermock.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-api-mockito</artifactId>
+      <version>${dependency.org.powermock.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>pentaho</groupId>
+      <artifactId>pentaho-mongodb-plugin</artifactId>
+      <version>${pentaho-mongodb-plugin.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
@@ -115,10 +151,42 @@
           <instructions>
             <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
             <Export-Package>org.pentaho.big.data.kettle.plugins.kafka.*;version=${project.version}</Export-Package>
-            <Import-Package>org.eclipse.swt*;resolution:=optional,org.pentaho.di.osgi,org.pentaho.di.core.plugins,*</Import-Package>
+            <Import-Package>org.eclipse.swt*;resolution:=optional,org.pentaho.di.osgi,org.pentaho.di.core.plugins,org.pentaho.hadoop.shim.api.cluster,*</Import-Package>
           </instructions>
         </configuration>
       </plugin>
     </plugins>
   </build>
+  <profiles>
+    <profile>
+      <id>integration-test</id>
+      <activation>
+        <property>
+          <name>runITs</name>
+        </property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>pentaho</groupId>
+          <artifactId>pentaho-metaverse-core</artifactId>
+          <classifier>tests</classifier>
+          <type>test-jar</type>
+          <version>${pdi.version}</version>
+          <scope>test</scope>
+        </dependency>
+        <dependency>
+          <groupId>pentaho</groupId>
+          <artifactId>pentaho-metaverse-core</artifactId>
+          <version>${pdi.version}</version>
+          <scope>test</scope>
+        </dependency>
+        <dependency>
+          <groupId>org.osgi</groupId>
+          <artifactId>org.osgi.core</artifactId>
+          <version>${osgi.version}</version>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 </project>

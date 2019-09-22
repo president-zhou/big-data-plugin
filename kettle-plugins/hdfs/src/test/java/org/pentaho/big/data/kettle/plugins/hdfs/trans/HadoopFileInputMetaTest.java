@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Pentaho Big Data
  * <p/>
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  * <p/>
  * ******************************************************************************
  * <p/>
@@ -17,15 +17,18 @@
 
 package org.pentaho.big.data.kettle.plugins.hdfs.trans;
 
+import org.apache.commons.vfs2.provider.URLFileName;
 import org.apache.log4j.Logger;
 import org.jdom.Document;
 import org.jdom.Element;
 import org.jdom.input.SAXBuilder;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
+import org.pentaho.di.core.KettleEnvironment;
 import org.pentaho.di.core.fileinput.FileInputList;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.variables.Variables;
@@ -48,10 +51,10 @@ import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
 
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
-
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doReturn;
@@ -187,4 +190,44 @@ public class HadoopFileInputMetaTest {
     assertEquals( "urlFromCluster", hadoopFileInputMetaSpy.inputFiles.fileName[0] );
   }
 
+  @Test
+  public void testGetUrl() {
+    final HadoopFileInputMeta meta = Mockito.mock( HadoopFileInputMeta.class );
+    final URLFileName mockFileName = Mockito.mock( URLFileName.class );
+    final String scheme = "hdfs";
+    final String hostName = "svqxbdcn6cdh512n1.pentahoqa.com";
+    final String rootUrl = scheme + "://" + hostName + ":8020/";
+    final String path = "wordcount/input";
+    final String url = rootUrl + path;
+
+    Mockito.doReturn( hostName ).when( mockFileName ).getHostName();
+    Mockito.doReturn( scheme ).when( mockFileName ).getScheme();
+
+    Mockito.doReturn( mockFileName ).when( meta ).getUrlFileName( url );
+    Mockito.doReturn( rootUrl ).when( mockFileName ).getRootURI();
+    Mockito.doCallRealMethod().when( meta ).getUrlHostName( url );
+    Mockito.doCallRealMethod().when( meta ).getUrlPath( url );
+
+    Assert.assertEquals( hostName, meta.getUrlHostName( url ) );
+    Assert.assertEquals( "/" + path, meta.getUrlPath( url ) );
+  }
+
+  @Test
+  public void testEncryption() throws Exception {
+    KettleEnvironment.init();
+    HadoopFileInputMeta meta = new HadoopFileInputMeta();
+    String url = "hdfs://user:password@myhost:8020/myfile";
+    String encrypted = meta.encryptDecryptPassword( url, HadoopFileInputMeta.EncryptDirection.ENCRYPT );
+    assertTrue( !encrypted.contains( "password" ) );
+    assertEquals( url, meta.encryptDecryptPassword( encrypted, HadoopFileInputMeta.EncryptDirection.DECRYPT ) );
+  }
+
+  @Test
+  public void testNoPassword() throws Exception {
+    KettleEnvironment.init();
+    HadoopFileInputMeta meta = new HadoopFileInputMeta();
+    String url = "hdfs://user@myhost:8020/myfile";
+    String encrypted = meta.encryptDecryptPassword( url, HadoopFileInputMeta.EncryptDirection.ENCRYPT );
+    assertEquals( url, meta.encryptDecryptPassword( encrypted, HadoopFileInputMeta.EncryptDirection.DECRYPT ) );
+  }
 }

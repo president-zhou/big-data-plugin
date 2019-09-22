@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -24,10 +24,10 @@ package org.pentaho.big.data.kettle.plugins.kafka;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
-import org.pentaho.big.data.api.cluster.service.locator.NamedClusterServiceLocator;
-import org.pentaho.bigdata.api.jaas.JaasConfigService;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterServiceLocator;
+import org.pentaho.hadoop.shim.api.jaas.JaasConfigService;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.ObjectLocationSpecificationMethod;
 import org.pentaho.di.core.annotations.Step;
@@ -68,6 +68,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.ConnectionType.DIRECT;
 
 @Step( id = "KafkaConsumerInput", image = "KafkaConsumerInput.svg",
@@ -75,7 +76,7 @@ import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.C
   name = "KafkaConsumer.TypeLongDesc",
   description = "KafkaConsumer.TypeTooltipDesc",
   categoryDescription = "i18n:org.pentaho.di.trans.step:BaseStep.Category.Streaming",
-  documentationUrl = "Products/Data_Integration/Transformation_Step_Reference/Kafka_Consumer" )
+  documentationUrl = "Products/Kafka_Consumer" )
 @InjectionSupported( localizationPrefix = "KafkaConsumerInputMeta.Injection.", groups = { "CONFIGURATION_PROPERTIES" } )
 public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMetaInterface {
   public enum ConnectionType {
@@ -102,8 +103,9 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
   public static final String OUTPUT_FIELD_TAG_NAME = "OutputField";
   public static final String KAFKA_NAME_ATTRIBUTE = "kafkaName";
   public static final String TYPE_ATTRIBUTE = "type";
+  public static final String AUTO_COMMIT = "AUTO_COMMIT";
 
-  private static Class<?> PKG = KafkaConsumerInput.class; // for i18n purposes, needed by Translator2!!   $NON-NLS-1$
+  private static final Class<?> PKG = KafkaConsumerInput.class; // for i18n purposes, needed by Translator2!!   $NON-NLS-1$
 
   @Injection( name = "CONNECTION_TYPE" )
   private ConnectionType connectionType = DIRECT;
@@ -127,10 +129,13 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
   private KafkaConsumerField messageField;
 
   @Injection( name = "NAMES", group = "CONFIGURATION_PROPERTIES" )
-  protected transient List<String> injectedConfigNames;
+  protected List<String> injectedConfigNames;
 
   @Injection( name = "VALUES", group = "CONFIGURATION_PROPERTIES" )
-  protected transient List<String> injectedConfigValues;
+  protected List<String> injectedConfigValues;
+
+  @Injection( name = AUTO_COMMIT )
+  private boolean autoCommit = true;
 
   private Map<String, String> config = new LinkedHashMap<>();
 
@@ -142,7 +147,7 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
 
   private KafkaConsumerField timestampField;
 
-  private transient KafkaFactory kafkaFactory;
+  private KafkaFactory kafkaFactory;
 
   private NamedClusterService namedClusterService;
 
@@ -188,13 +193,8 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
     setSpecificationMethod( ObjectLocationSpecificationMethod.FILENAME );
   }
 
-  public void loadXML( Node stepnode, List<DatabaseMeta> databases, IMetaStore metaStore ) {
+  @Override public void loadXML( Node stepnode, List<DatabaseMeta> databases, IMetaStore metaStore ) {
     readData( stepnode );
-  }
-
-  public Object clone() {
-    Object retval = super.clone();
-    return retval;
   }
 
   private void readData( Node stepnode ) {
@@ -213,10 +213,14 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
       setSubStep( subStepTag );
     }
     setFileName( XMLHandler.getTagValue( stepnode, TRANSFORMATION_PATH ) );
-    setBatchSize( XMLHandler.getTagValue( stepnode, BATCH_SIZE ) );
-    setBatchDuration( XMLHandler.getTagValue( stepnode, BATCH_DURATION ) );
+    setBatchSize( Optional.ofNullable( XMLHandler.getTagValue( stepnode, BATCH_SIZE ) ).orElse( "" ) );
+    setBatchDuration( Optional.ofNullable( XMLHandler.getTagValue( stepnode, BATCH_DURATION ) ).orElse( "" ) );
+    String parallelism = XMLHandler.getTagValue( stepnode, PARALLELISM );
+    setParallelism( isNullOrEmpty( parallelism ) ? "1" : parallelism );
     setConnectionType( ConnectionType.valueOf( XMLHandler.getTagValue( stepnode, CONNECTION_TYPE ) ) );
     setDirectBootstrapServers( XMLHandler.getTagValue( stepnode, DIRECT_BOOTSTRAP_SERVERS ) );
+    String autoCommitValue = XMLHandler.getTagValue( stepnode, AUTO_COMMIT );
+    setAutoCommit( "Y".equals( autoCommitValue ) || isNullOrEmpty( autoCommitValue ) );
     List<Node> ofNode = XMLHandler.getNodes( stepnode, OUTPUT_FIELD_TAG_NAME );
 
     ofNode.forEach( node -> {
@@ -233,7 +237,7 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
 
     config = new LinkedHashMap<>();
 
-    Optional.ofNullable( XMLHandler.getSubNode( stepnode, ADVANCED_CONFIG ) ).map( node -> node.getChildNodes() )
+    Optional.ofNullable( XMLHandler.getSubNode( stepnode, ADVANCED_CONFIG ) ).map( Node::getChildNodes )
         .ifPresent( nodes -> IntStream.range( 0, nodes.getLength() ).mapToObj( nodes::item )
             .filter( node -> node.getNodeType() == Node.ELEMENT_NODE )
             .forEach( node -> {
@@ -250,33 +254,37 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
     field.getKafkaName().setFieldOnMeta( this, field );
   }
 
-  public void setDefault() {
+  @Override public void setDefault() {
     batchSize = "1000";
     batchDuration = "1000";
+    parallelism = "1";
   }
 
-  public void readRep( Repository rep, IMetaStore metaStore, ObjectId id_step, List<DatabaseMeta> databases )
+  @Override public void readRep( Repository rep, IMetaStore metaStore, ObjectId objectId, List<DatabaseMeta> databases )
     throws KettleException {
-    setClusterName( rep.getStepAttributeString( id_step, CLUSTER_NAME ) );
+    setClusterName( rep.getStepAttributeString( objectId, CLUSTER_NAME ) );
 
-    int topicCount = rep.countNrStepAttributes( id_step, TOPIC );
+    int topicCount = rep.countNrStepAttributes( objectId, TOPIC );
     for ( int i = 0; i < topicCount; i++ ) {
-      addTopic( rep.getStepAttributeString( id_step, i, TOPIC ) );
+      addTopic( rep.getStepAttributeString( objectId, i, TOPIC ) );
     }
 
-    setConsumerGroup( rep.getStepAttributeString( id_step, CONSUMER_GROUP ) );
-    setTransformationPath( rep.getStepAttributeString( id_step, TRANSFORMATION_PATH ) );
-    setSubStep( rep.getStepAttributeString( id_step, SUB_STEP ) );
-    setFileName( rep.getStepAttributeString( id_step, TRANSFORMATION_PATH ) );
-    setBatchSize( rep.getStepAttributeString( id_step, BATCH_SIZE ) );
-    setBatchDuration( rep.getStepAttributeString( id_step, BATCH_DURATION ) );
-    setConnectionType( ConnectionType.valueOf( rep.getStepAttributeString( id_step, CONNECTION_TYPE ) ) );
-    setDirectBootstrapServers( rep.getStepAttributeString( id_step, DIRECT_BOOTSTRAP_SERVERS ) );
+    setConsumerGroup( rep.getStepAttributeString( objectId, CONSUMER_GROUP ) );
+    setTransformationPath( rep.getStepAttributeString( objectId, TRANSFORMATION_PATH ) );
+    setSubStep( rep.getStepAttributeString( objectId, SUB_STEP ) );
+    setFileName( rep.getStepAttributeString( objectId, TRANSFORMATION_PATH ) );
+    setBatchSize( Optional.ofNullable( rep.getStepAttributeString( objectId, BATCH_SIZE ) ).orElse( "" ) );
+    setBatchDuration( Optional.ofNullable( rep.getStepAttributeString( objectId, BATCH_DURATION ) ).orElse( "" ) );
+    String parallelism = rep.getStepAttributeString( objectId, PARALLELISM );
+    setParallelism( isNullOrEmpty( parallelism ) ? "1" : parallelism );
+    setConnectionType( ConnectionType.valueOf( rep.getStepAttributeString( objectId, CONNECTION_TYPE ) ) );
+    setDirectBootstrapServers( rep.getStepAttributeString( objectId, DIRECT_BOOTSTRAP_SERVERS ) );
+    setAutoCommit( rep.getStepAttributeBoolean( objectId, 0, AUTO_COMMIT, true ) );
 
     for ( KafkaConsumerField.Name name : KafkaConsumerField.Name.values() ) {
       String prefix = OUTPUT_FIELD_TAG_NAME + "_" + name;
-      String value = rep.getStepAttributeString( id_step, prefix );
-      String type = rep.getStepAttributeString( id_step, prefix + "_" + TYPE_ATTRIBUTE );
+      String value = rep.getStepAttributeString( objectId, prefix );
+      String type = rep.getStepAttributeString( objectId, prefix + "_" + TYPE_ATTRIBUTE );
       if ( value != null ) {
         setField( new KafkaConsumerField( name, value, KafkaConsumerField.Type.valueOf( type ) ) );
       }
@@ -284,13 +292,13 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
 
     config = new LinkedHashMap<>();
 
-    for ( int i = 0; i < rep.getStepAttributeInteger( id_step, ADVANCED_CONFIG + "_COUNT" ); i++ ) {
-      config.put( rep.getStepAttributeString( id_step, i, ADVANCED_CONFIG + "_NAME" ),
-          rep.getStepAttributeString( id_step, i, ADVANCED_CONFIG + "_VALUE" ) );
+    for ( int i = 0; i < rep.getStepAttributeInteger( objectId, ADVANCED_CONFIG + "_COUNT" ); i++ ) {
+      config.put( rep.getStepAttributeString( objectId, i, ADVANCED_CONFIG + "_NAME" ),
+          rep.getStepAttributeString( objectId, i, ADVANCED_CONFIG + "_VALUE" ) );
     }
   }
 
-  public void saveRep( Repository rep, IMetaStore metaStore, ObjectId transId, ObjectId stepId )
+  @Override public void saveRep( Repository rep, IMetaStore metaStore, ObjectId transId, ObjectId stepId )
     throws KettleException {
     rep.saveStepAttribute( transId, stepId, CLUSTER_NAME, clusterName );
 
@@ -304,8 +312,10 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
     rep.saveStepAttribute( transId, stepId, SUB_STEP, getSubStep() );
     rep.saveStepAttribute( transId, stepId, BATCH_SIZE, batchSize );
     rep.saveStepAttribute( transId, stepId, BATCH_DURATION, batchDuration );
+    rep.saveStepAttribute( transId, stepId, PARALLELISM, parallelism );
     rep.saveStepAttribute( transId, stepId, CONNECTION_TYPE, connectionType.name() );
     rep.saveStepAttribute( transId, stepId, DIRECT_BOOTSTRAP_SERVERS, directBootstrapServers );
+    rep.saveStepAttribute( transId, stepId, AUTO_COMMIT, autoCommit );
 
     List<KafkaConsumerField> fields = getFieldDefinitions();
     for ( KafkaConsumerField field : fields ) {
@@ -335,7 +345,7 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
     return rowMeta;
   }
 
-  private void putFieldOnRowMeta( KafkaConsumerField field, RowMetaInterface rowMeta,
+  void putFieldOnRowMeta( KafkaConsumerField field, RowMetaInterface rowMeta,
                                   String origin, VariableSpace space ) throws KettleStepException {
     if ( field != null && !Utils.isEmpty( field.getOutputName() ) ) {
       try {
@@ -355,20 +365,16 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
   }
 
 
-  public StepInterface getStep( StepMeta stepMeta, StepDataInterface stepDataInterface, int cnr, TransMeta tr,
+  @Override public StepInterface getStep( StepMeta stepMeta, StepDataInterface stepDataInterface, int cnr, TransMeta tr,
                                 Trans trans ) {
     return new KafkaConsumerInput( stepMeta, stepDataInterface, cnr, tr, trans );
   }
 
-  public StepDataInterface getStepData() {
+  @Override public StepDataInterface getStepData() {
     return new KafkaConsumerInputData();
   }
 
-  public String getDialogClassName() {
-    return "org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputDialog";
-  }
-
-  public void setTopics( ArrayList<String> topics ) {
+  public void setTopics( List<String> topics ) {
     this.topics = topics;
   }
 
@@ -474,8 +480,10 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
     retval.append( "    " ).append( XMLHandler.addTagValue( SUB_STEP, getSubStep() ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( BATCH_SIZE, batchSize ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( BATCH_DURATION, batchDuration ) );
+    retval.append( "    " ).append( XMLHandler.addTagValue( PARALLELISM, parallelism ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( CONNECTION_TYPE, connectionType.name() ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( DIRECT_BOOTSTRAP_SERVERS, directBootstrapServers ) );
+    retval.append( "    " ).append( XMLHandler.addTagValue( AUTO_COMMIT, autoCommit ) );
 
     getFieldDefinitions().forEach( field ->
       retval.append( "    " ).append(
@@ -528,6 +536,14 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
 
   public void setNamedClusterService( NamedClusterService namedClusterService ) {
     this.namedClusterService = namedClusterService;
+  }
+
+  public void setAutoCommit( boolean autoCommit ) {
+    this.autoCommit = autoCommit;
+  }
+
+  public boolean isAutoCommit() {
+    return autoCommit;
   }
 
   public Optional<JaasConfigService> getJaasConfigService() {

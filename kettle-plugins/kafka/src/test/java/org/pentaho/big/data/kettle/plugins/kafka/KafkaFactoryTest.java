@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -44,11 +44,11 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
-import org.pentaho.big.data.api.cluster.service.locator.NamedClusterServiceLocator;
-import org.pentaho.big.data.api.initializer.ClusterInitializationException;
-import org.pentaho.bigdata.api.jaas.JaasConfigService;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterServiceLocator;
+import org.pentaho.hadoop.shim.api.cluster.ClusterInitializationException;
+import org.pentaho.hadoop.shim.api.jaas.JaasConfigService;
 import org.pentaho.di.core.variables.Variables;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.StepMeta;
@@ -56,7 +56,6 @@ import org.pentaho.metastore.api.IMetaStore;
 import org.pentaho.osgi.metastore.locator.api.MetastoreLocator;
 
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.mock;
 
 @RunWith( MockitoJUnitRunner.class )
 public class KafkaFactoryTest {
@@ -100,7 +99,7 @@ public class KafkaFactoryTest {
   }
 
   @Test
-  public void testMapsConsumers() throws Exception {
+  public void testMapsConsumers() {
     ArrayList<String> topicList = new ArrayList<>();
     topicList.add( "topic" );
     inputMeta.setTopics( topicList );
@@ -109,6 +108,7 @@ public class KafkaFactoryTest {
     inputMeta.setKeyField( new KafkaConsumerField( KafkaConsumerField.Name.KEY, "key" ) );
     inputMeta.setMessageField( new KafkaConsumerField( KafkaConsumerField.Name.MESSAGE, "msg" ) );
     inputMeta.setNamedClusterServiceLocator( namedClusterServiceLocator );
+    inputMeta.setAutoCommit( false );
 
     Map<String, String> advancedConfig = new LinkedHashMap<>();
     advancedConfig.put( "advanced.config1", "advancedPropertyValue1" );
@@ -123,6 +123,7 @@ public class KafkaFactoryTest {
     expectedMap.put( ConsumerConfig.GROUP_ID_CONFIG, "cg" );
     expectedMap.put( ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class );
     expectedMap.put( ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class );
+    expectedMap.put( ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false );
     expectedMap.put( "advanced.config1", "advancedPropertyValue1" );
     expectedMap.put( "advanced.config2", "advancedPropertyValue2" );
 
@@ -130,7 +131,7 @@ public class KafkaFactoryTest {
   }
 
   @Test
-  public void testMapsConsumersWithDeserilalizer() throws Exception {
+  public void testMapsConsumersWithDeserializer() {
     ArrayList<String> topicList = new ArrayList<>();
     topicList.add( "topic" );
     inputMeta.setTopics( topicList );
@@ -148,11 +149,12 @@ public class KafkaFactoryTest {
     expectedMap.put( ConsumerConfig.GROUP_ID_CONFIG, "cg" );
     expectedMap.put( ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, DoubleDeserializer.class );
     expectedMap.put( ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, LongDeserializer.class );
+    expectedMap.put( ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true );
     Mockito.verify( consumerFun ).apply( expectedMap  );
   }
 
   @Test
-  public void testMapsConsumersWithVariables() throws Exception {
+  public void testMapsConsumersWithVariables() {
     inputMeta.setConsumerGroup( "${consumerGroup}" );
     inputMeta.setNamedClusterServiceLocator( namedClusterServiceLocator );
 
@@ -173,11 +175,12 @@ public class KafkaFactoryTest {
     expectedMap.put( ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class );
     expectedMap.put( ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class );
     expectedMap.put( "advanced.variable", "advancedVarValue" );
+    expectedMap.put( ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true );
     Mockito.verify( consumerFun ).apply( expectedMap  );
   }
 
   @Test
-  public void testMapsProducers() throws Exception {
+  public void testMapsProducers() {
     outputMeta.setTopic( "topic" );
     outputMeta.setClientId( "client" );
     outputMeta.setKeyField( "key" );
@@ -204,7 +207,7 @@ public class KafkaFactoryTest {
   }
 
   @Test
-  public void testMapsProducersWithSerilalizer() throws Exception {
+  public void testMapsProducersWithSerializer() {
     outputMeta.setTopic( "topic" );
     outputMeta.setClientId( "client" );
     outputMeta.setKeyField( "key" );
@@ -223,7 +226,7 @@ public class KafkaFactoryTest {
   }
 
   @Test
-  public void testMapsProducersWithVariables() throws Exception {
+  public void testMapsProducersWithVariables() {
     outputMeta.setClientId( "${client}" );
     outputMeta.setNamedClusterServiceLocator( namedClusterServiceLocator );
 
@@ -250,7 +253,7 @@ public class KafkaFactoryTest {
   }
 
   @Test
-  public void testNullMetaPropertiesResultInEmptyString() throws Exception {
+  public void testNullMetaPropertiesResultInEmptyString() {
     outputMeta.setClusterName( null );
     outputMeta.setNamedClusterServiceLocator( namedClusterServiceLocator );
     when( jaasConfigService.isKerberos() ).thenReturn( false );
@@ -266,7 +269,7 @@ public class KafkaFactoryTest {
   }
 
   @Test
-  public void testProvidesJaasConfig() throws Exception {
+  public void testProvidesJaasConfig() {
     ArrayList<String> topicList = new ArrayList<>();
     topicList.add( "topic" );
     inputMeta.setTopics( topicList );
@@ -285,6 +288,7 @@ public class KafkaFactoryTest {
     expectedMap.put( ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class );
     expectedMap.put( ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class );
     expectedMap.put( SaslConfigs.SASL_JAAS_CONFIG, "some jaas config" );
+    expectedMap.put( ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true );
     expectedMap.put( "security.protocol", "SASL_PLAINTEXT" );
     Mockito.verify( consumerFun ).apply( expectedMap  );
   }

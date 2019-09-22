@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -33,11 +33,12 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.config.SaslConfigs;
-import org.pentaho.bigdata.api.jaas.JaasConfigService;
+import org.pentaho.hadoop.shim.api.jaas.JaasConfigService;
 
 /**
  * Created by rfellows on 6/2/17.
  */
+@SuppressWarnings( "squid:S4276" ) //Cannot refactor to UnaryOperator because usage of .andThen
 public class KafkaFactory {
   private Function<Map<String, Object>, Consumer> consumerFunction;
   private Function<Map<String, Object>, Producer<Object, Object>> producerFunction;
@@ -66,6 +67,7 @@ public class KafkaFactory {
     kafkaConfig.put( ConsumerConfig.GROUP_ID_CONFIG, variableNonNull.apply( meta.getConsumerGroup() ) );
     kafkaConfig.put( ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, msgDeserializerType.getKafkaDeserializerClass() );
     kafkaConfig.put( ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, keyDeserializerType.getKafkaDeserializerClass() );
+    kafkaConfig.put( ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, meta.isAutoCommit() );
     meta.getJaasConfigService().ifPresent( jaasConfigService -> putKerberosConfig( kafkaConfig, jaasConfigService ) );
     meta.getConfig().entrySet()
         .forEach( ( entry -> kafkaConfig.put( entry.getKey(), variableNonNull.apply(
@@ -74,7 +76,7 @@ public class KafkaFactory {
     return consumerFunction.apply( kafkaConfig );
   }
 
-  public void putKerberosConfig( HashMap<String, Object> kafkaConfig, JaasConfigService jaasConfigService ) {
+  public void putKerberosConfig( Map<String, Object> kafkaConfig, JaasConfigService jaasConfigService ) {
     if ( jaasConfigService.isKerberos() ) {
       kafkaConfig.put( SaslConfigs.SASL_JAAS_CONFIG, jaasConfigService.getJaasConfig() );
       kafkaConfig.put( CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT" );

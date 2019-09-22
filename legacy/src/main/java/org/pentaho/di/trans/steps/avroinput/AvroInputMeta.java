@@ -2,7 +2,7 @@
  *
  * Pentaho Big Data
  *
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -79,11 +79,12 @@ import org.w3c.dom.Node;
  * @author Mark Hall (mhall{[at]}pentaho{[dot]}com)
  * @version $Revision$
  */
-@Step( id = "AvroInput", image = "Avro.svg", name = "AvroInput.Name", description = "AvroInput.Description",
-    // categoryDescription = "i18n:org.pentaho.di.trans.step:BaseStep.Category.BigData",
+@Step( id = "AvroInput", image = "ui/images/deprecated.svg", name = "AvroInput.Name",
+    description = "AvroInput.Description",
     categoryDescription = "i18n:org.pentaho.di.trans.step:BaseStep.Category.Deprecated",
-    documentationUrl = "http://wiki.pentaho.com/display/EAI/Avro+Input",
-    i18nPackageName = "org.pentaho.di.trans.steps.avroinput" )
+    documentationUrl = "Products/Avro_Input",
+    i18nPackageName = "org.pentaho.di.trans.steps.avroinput",
+    suggestion = "AvroInput.SuggestedStep" )
 @InjectionSupported( localizationPrefix = "AvroInput.Injection.", groups = { "AVRO_FIELDS", "LOOKUP_FIELDS" } )
 public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
@@ -959,7 +960,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.BaseStepMeta#getFields(org.pentaho.di.core.row .RowMetaInterface, java.lang.String,
    * org.pentaho.di.core.row.RowMetaInterface[], org.pentaho.di.trans.step.StepMeta,
    * org.pentaho.di.core.variables.VariableSpace)
@@ -1018,7 +1019,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.StepMetaInterface#check(java.util.List, org.pentaho.di.trans.TransMeta,
    * org.pentaho.di.trans.step.StepMeta, org.pentaho.di.core.row.RowMetaInterface, java.lang.String[],
    * java.lang.String[], org.pentaho.di.core.row.RowMetaInterface)
@@ -1029,7 +1030,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.StepMetaInterface#getStep(org.pentaho.di.trans .step.StepMeta,
    * org.pentaho.di.trans.step.StepDataInterface, int, org.pentaho.di.trans.TransMeta, org.pentaho.di.trans.Trans)
    */
@@ -1041,7 +1042,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.StepMetaInterface#getStepData()
    */
   public StepDataInterface getStepData() {
@@ -1088,7 +1089,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.BaseStepMeta#getXML()
    */
   @Override
@@ -1164,7 +1165,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.StepMetaInterface#loadXML(org.w3c.dom.Node, java.util.List, java.util.Map)
    */
   @Override
@@ -1247,7 +1248,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.StepMetaInterface#readRep(org.pentaho.di.repository .Repository,
    * org.pentaho.di.repository.ObjectId, java.util.List, java.util.Map)
    */
@@ -1306,7 +1307,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.StepMetaInterface#saveRep(org.pentaho.di.repository .Repository,
    * org.pentaho.di.repository.ObjectId, org.pentaho.di.repository.ObjectId)
    */
@@ -1366,7 +1367,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.BaseStepMeta#getDialogClassName()
    */
   @Override
@@ -1376,7 +1377,7 @@ public class AvroInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.pentaho.di.trans.step.BaseStepMeta#supportsErrorHandling()
    */
   @Override

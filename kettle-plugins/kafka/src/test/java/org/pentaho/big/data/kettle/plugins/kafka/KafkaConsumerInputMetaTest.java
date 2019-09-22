@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -28,11 +28,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
-import org.pentaho.big.data.api.cluster.service.locator.NamedClusterServiceLocator;
-import org.pentaho.big.data.api.initializer.ClusterInitializationException;
-import org.pentaho.bigdata.api.jaas.JaasConfigService;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterServiceLocator;
+import org.pentaho.hadoop.shim.api.cluster.ClusterInitializationException;
+import org.pentaho.hadoop.shim.api.jaas.JaasConfigService;
 import org.pentaho.di.core.CheckResultInterface;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.KettleClientEnvironment;
@@ -64,9 +64,9 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -74,6 +74,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.ADVANCED_CONFIG;
+import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.AUTO_COMMIT;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.BATCH_DURATION;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.BATCH_SIZE;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.CLUSTER_NAME;
@@ -84,9 +85,10 @@ import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.C
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.DIRECT_BOOTSTRAP_SERVERS;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.TOPIC;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.TRANSFORMATION_PATH;
+import static org.pentaho.di.trans.streaming.common.BaseStreamStepMeta.PARALLELISM;
 import static org.pentaho.di.trans.streaming.common.BaseStreamStepMeta.SUB_STEP;
 
-@RunWith( MockitoJUnitRunner.class )
+@RunWith ( MockitoJUnitRunner.class )
 public class KafkaConsumerInputMetaTest {
   @Mock IMetaStore metastore;
   @Mock Repository rep;
@@ -104,6 +106,59 @@ public class KafkaConsumerInputMetaTest {
       KafkaConsumerInputMeta.class,
       KafkaConsumerInputMeta.class.getAnnotation( org.pentaho.di.core.annotations.Step.class ),
       Collections.emptyList(), false, null );
+  }
+
+  @Test
+  public void nullDurationSizeLoadedAsEmptyString() throws Exception {
+    KafkaConsumerInputMeta meta = new KafkaConsumerInputMeta();
+    String inputXml =
+      "  <step>\n"
+        + "    <name>Kafka Consumer</name>\n"
+        + "    <type>KafkaConsumerInput</type>\n"
+        + "    <description />\n"
+        + "    <distribute>Y</distribute>\n"
+        + "    <custom_distribution />\n"
+        + "    <copies>1</copies>\n"
+        + "    <partitioning>\n"
+        + "      <method>none</method>\n"
+        + "      <schema_name />\n"
+        + "    </partitioning>\n"
+        + "    <clusterName>some_cluster</clusterName>\n"
+        + "    <directBootstrapServers>some_host:123,some_other_host:456</directBootstrapServers>\n"
+        + "    <connectionType>CLUSTER</connectionType>\n"
+        + "    <topic>one</topic>\n"
+        + "    <consumerGroup>two</consumerGroup>\n"
+        + "    <transformationPath>/home/pentaho/myKafkaTransformation.ktr</transformationPath>\n"
+        + "    <SUB_STEP>Filter</SUB_STEP>\n"
+        + "    <batchSize/>\n"
+        + "    <batchDuration/>\n"
+        + "    <OutputField kafkaName=\"key\" type=\"String\">three</OutputField>\n"
+        + "    <OutputField kafkaName=\"message\" type=\"String\">four</OutputField>\n"
+        + "    <OutputField kafkaName=\"topic\" type=\"String\">five</OutputField>\n"
+        + "    <OutputField kafkaName=\"partition\" type=\"Integer\">six</OutputField>\n"
+        + "    <OutputField kafkaName=\"offset\" type=\"Integer\">seven</OutputField>\n"
+        + "    <OutputField kafkaName=\"timestamp\" type=\"Integer\">eight</OutputField>\n"
+        + "    <advancedConfig>\n"
+        + "        <option property=\"advanced.property1\" value=\"advancedPropertyValue1\"></option>\n"
+        + "        <option property=\"advanced.property2\" value=\"advancedPropertyValue2\"></option>\n"
+        + "    </advancedConfig>\n"
+        + "    <cluster_schema />\n"
+        + "    <remotesteps>\n"
+        + "      <input>\n"
+        + "      </input>\n"
+        + "      <output>\n"
+        + "      </output>\n"
+        + "    </remotesteps>\n"
+        + "    <GUI>\n"
+        + "      <xloc>208</xloc>\n"
+        + "      <yloc>80</yloc>\n"
+        + "      <draw>Y</draw>\n"
+        + "    </GUI>\n"
+        + "  </step>\n";
+    Node node = XMLHandler.loadXMLString( inputXml ).getFirstChild();
+    meta.loadXML( node, Collections.emptyList(), metastore );
+    assertEquals( "", meta.getBatchDuration() );
+    assertEquals( "", meta.getBatchSize() );
   }
 
   @Test
@@ -163,8 +218,10 @@ public class KafkaConsumerInputMetaTest {
     assertEquals( "/home/pentaho/myKafkaTransformation.ktr", meta.getFileName() );
     assertEquals( "12345", meta.getBatchSize() );
     assertEquals( "999", meta.getBatchDuration() );
+    assertEquals( "1", meta.getParallelism() );
     assertEquals( CLUSTER, meta.getConnectionType() );
     assertEquals( "some_host:123,some_other_host:456", meta.getDirectBootstrapServers() );
+    assertTrue( meta.isAutoCommit() );
 
     assertEquals( "three", meta.getKeyField().getOutputName() );
     assertEquals( KafkaConsumerField.Type.String, meta.getKeyField().getOutputType() );
@@ -244,8 +301,10 @@ public class KafkaConsumerInputMetaTest {
         + "    <SUB_STEP/>" + Const.CR
         + "    <batchSize>54321</batchSize>" + Const.CR
         + "    <batchDuration>987</batchDuration>" + Const.CR
+        + "    <PARALLELISM>1</PARALLELISM>" + Const.CR
         + "    <connectionType>DIRECT</connectionType>" + Const.CR
         + "    <directBootstrapServers>localhost:888</directBootstrapServers>" + Const.CR
+        + "    <AUTO_COMMIT>Y</AUTO_COMMIT>" + Const.CR
         + "    <OutputField kafkaName=\"key\"  type=\"String\" >kafkaKey</OutputField>" + Const.CR
         + "    <OutputField kafkaName=\"message\"  type=\"String\" >kafkaMessage</OutputField>" + Const.CR
         + "    <OutputField kafkaName=\"topic\"  type=\"String\" >topic</OutputField>" + Const.CR
@@ -273,8 +332,10 @@ public class KafkaConsumerInputMetaTest {
     when( rep.getStepAttributeString( stepId, SUB_STEP ) ).thenReturn( "Group By" );
     when( rep.getStepAttributeString( stepId, BATCH_SIZE ) ).thenReturn( "999" );
     when( rep.getStepAttributeString( stepId, BATCH_DURATION ) ).thenReturn( "111" );
+    when( rep.getStepAttributeString( stepId, PARALLELISM ) ).thenReturn( "222" );
     when( rep.getStepAttributeString( stepId, CONNECTION_TYPE ) ).thenReturn( "CLUSTER" );
     when( rep.getStepAttributeString( stepId, DIRECT_BOOTSTRAP_SERVERS ) ).thenReturn( "unused" );
+    when( rep.getStepAttributeString( stepId, AUTO_COMMIT ) ).thenReturn( "N" );
 
     when( rep.getStepAttributeString( stepId, "OutputField_key" ) ).thenReturn( "machineId" );
     when( rep.getStepAttributeString( stepId, "OutputField_key_type" ) ).thenReturn( "String" );
@@ -312,8 +373,10 @@ public class KafkaConsumerInputMetaTest {
     assertEquals( "/home/pentaho/atrans.ktr", meta.getFileName() );
     assertEquals( 999L, Long.parseLong( meta.getBatchSize() ) );
     assertEquals( 111L, Long.parseLong( meta.getBatchDuration() ) );
+    assertEquals( 222, Long.parseLong( meta.getParallelism() ) );
     assertEquals( CLUSTER, meta.getConnectionType() );
     assertEquals( "unused", meta.getDirectBootstrapServers() );
+    assertFalse( meta.isAutoCommit() );
 
     assertEquals( KafkaConsumerField.Name.KEY, meta.getKeyField().getKafkaName() );
     assertEquals( "machineId", meta.getKeyField().getOutputName() );
@@ -358,6 +421,7 @@ public class KafkaConsumerInputMetaTest {
     meta.setSubStep( "Group By" );
     meta.setBatchSize( "33" );
     meta.setBatchDuration( "10000" );
+    meta.setParallelism( "4" );
     meta.setConnectionType( DIRECT );
     meta.setDirectBootstrapServers( "kafkaServer:9092" );
 
@@ -377,8 +441,10 @@ public class KafkaConsumerInputMetaTest {
     verify( rep ).saveStepAttribute( transId, stepId, SUB_STEP, "Group By" );
     verify( rep ).saveStepAttribute( transId, stepId, BATCH_SIZE, "33" );
     verify( rep ).saveStepAttribute( transId, stepId, BATCH_DURATION, "10000" );
+    verify( rep ).saveStepAttribute( transId, stepId, PARALLELISM, "4" );
     verify( rep ).saveStepAttribute( transId, stepId, CONNECTION_TYPE, "DIRECT" );
     verify( rep ).saveStepAttribute( transId, stepId, DIRECT_BOOTSTRAP_SERVERS, "kafkaServer:9092" );
+    verify( rep ).saveStepAttribute( transId, stepId, AUTO_COMMIT, true );
 
     verify( rep ).saveStepAttribute( transId, stepId, "OutputField_key", meta.getKeyField().getOutputName() );
     verify( rep )
@@ -563,14 +629,14 @@ public class KafkaConsumerInputMetaTest {
     transMeta.checkSteps( remarks, false, monitor, variables, rep, metastore );
     assertEquals( 2, remarks.size() );
     assertEquals( "The \"Number of records\" and \"Duration\" fields can’t both be set to 0. Please set a value of 1 "
-        + "or higher for one of the fields.", remarks.get( 0 ).getText() );
+      + "or higher for one of the fields.", remarks.get( 0 ).getText() );
   }
 
   @Test
   public void testReferencedObjectHasDescription() {
     KafkaConsumerInputMeta meta = new KafkaConsumerInputMeta();
     assertEquals( 1, meta.getReferencedObjectDescriptions().length );
-    assertTrue( meta.getReferencedObjectDescriptions()[ 0 ] != null );
+    assertNotNull( meta.getReferencedObjectDescriptions()[ 0 ] );
   }
 
   @Test
@@ -583,14 +649,10 @@ public class KafkaConsumerInputMetaTest {
   }
 
   @Test
-  public void testLoadReferencedObject() {
+  public void testLoadReferencedObject() throws KettleException {
     KafkaConsumerInputMeta meta = new KafkaConsumerInputMeta();
     meta.setFileName( getClass().getResource( "/consumerSub.ktr" ).getPath() );
-    try {
-      TransMeta subTrans = (TransMeta) meta.loadReferencedObject( 0, null, null, new Variables() );
-      assertThat( subTrans.getName(), is( "consumerSub" ) );
-    } catch ( KettleException e ) {
-      fail();
-    }
+    TransMeta subTrans = (TransMeta) meta.loadReferencedObject( 0, null, null, new Variables() );
+    assertThat( subTrans.getName(), is( "consumerSub" ) );
   }
 }

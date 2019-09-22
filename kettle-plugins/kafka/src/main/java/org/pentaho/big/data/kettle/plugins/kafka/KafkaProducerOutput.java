@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -35,9 +35,10 @@ import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.step.StepMetaInterface;
 
+
 public class KafkaProducerOutput extends BaseStep implements StepInterface {
 
-  private static Class<?> PKG = KafkaConsumerInputMeta.class;
+  private static final Class<?> PKG = KafkaConsumerInputMeta.class;
   private KafkaProducerOutputMeta meta;
   private KafkaProducerOutputData data;
   private KafkaFactory kafkaFactory;
@@ -60,7 +61,7 @@ public class KafkaProducerOutput extends BaseStep implements StepInterface {
    * @param stepMetaInterface The metadata to work with
    * @param stepDataInterface The data to initialize
    */
-  public boolean init( StepMetaInterface stepMetaInterface, StepDataInterface stepDataInterface ) {
+  @Override public boolean init( StepMetaInterface stepMetaInterface, StepDataInterface stepDataInterface ) {
     super.init( stepMetaInterface, stepDataInterface );
     meta = ( (KafkaProducerOutputMeta) stepMetaInterface );
     data = ( (KafkaProducerOutputData) stepDataInterface );
@@ -68,7 +69,7 @@ public class KafkaProducerOutput extends BaseStep implements StepInterface {
     return true;
   }
 
-  public boolean processRow( StepMetaInterface smi, StepDataInterface sdi ) throws KettleException {
+  @Override public boolean processRow( StepMetaInterface smi, StepDataInterface sdi ) throws KettleException {
     Object[] r = getRow(); // get row, set busy!
     if ( r == null ) {
       // no more input to be expected...
@@ -88,15 +89,22 @@ public class KafkaProducerOutput extends BaseStep implements StepInterface {
         KafkaConsumerField.Type.fromValueMetaInterface( keyValueMeta ),
         KafkaConsumerField.Type.fromValueMetaInterface( msgValueMeta ) );
 
+      data.isOpen = true;
+
       first = false;
     }
 
+    if ( !data.isOpen ) {
+      return false;
+    }
     ProducerRecord<Object, Object> producerRecord;
     // allow for null keys
-    if ( data.keyFieldIndex < 0 || r[ data.keyFieldIndex ] == null || StringUtil.isEmpty( r[ data.keyFieldIndex ].toString() ) ) {
+    if ( data.keyFieldIndex < 0 || r[ data.keyFieldIndex ] == null || StringUtil
+      .isEmpty( r[ data.keyFieldIndex ].toString() ) ) {
       producerRecord = new ProducerRecord<>( environmentSubstitute( meta.getTopic() ), r[ data.messageFieldIndex ] );
     } else {
-      producerRecord = new ProducerRecord<>( environmentSubstitute( meta.getTopic() ), r[ data.keyFieldIndex ], r[ data.messageFieldIndex ] );
+      producerRecord = new ProducerRecord<>( environmentSubstitute( meta.getTopic() ), r[ data.keyFieldIndex ],
+        r[ data.messageFieldIndex ] );
     }
 
     data.kafkaProducer.send( producerRecord );
@@ -104,12 +112,19 @@ public class KafkaProducerOutput extends BaseStep implements StepInterface {
 
     putRow( getInputRowMeta(), r ); // copy row to possible alternate rowset(s).
 
-    if ( checkFeedback( getLinesRead() ) ) {
-      if ( log.isBasic() ) {
-        logBasic( BaseMessages.getString( PKG, "KafkaConsumerInput.Log.LineNumber" ) + getLinesRead() );
-      }
+    if ( checkFeedback( getLinesRead() ) && log.isBasic() ) {
+      logBasic( BaseMessages.getString( PKG, "KafkaConsumerInput.Log.LineNumber" ) + getLinesRead() );
     }
 
     return true;
+  }
+
+  @Override
+  public void stopRunning( StepMetaInterface stepMetaInterface, StepDataInterface stepDataInterface ) {
+    if ( data.kafkaProducer != null && data.isOpen ) {
+      data.isOpen = false;
+      data.kafkaProducer.flush();
+      data.kafkaProducer.close();
+    }
   }
 }

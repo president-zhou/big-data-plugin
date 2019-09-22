@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -29,7 +29,6 @@ import org.eclipse.swt.custom.CCombo;
 import org.eclipse.swt.custom.CTabItem;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
-import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.FormAttachment;
 import org.eclipse.swt.layout.FormData;
 import org.eclipse.swt.layout.FormLayout;
@@ -43,28 +42,18 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableItem;
 import org.pentaho.di.core.Const;
-import org.pentaho.di.core.exception.KettleException;
-import org.pentaho.di.core.plugins.PluginInterface;
-import org.pentaho.di.core.plugins.PluginRegistry;
-import org.pentaho.di.core.plugins.StepPluginType;
+import org.pentaho.di.core.annotations.PluginDialog;
 import org.pentaho.di.core.row.value.ValueMetaFactory;
 import org.pentaho.di.i18n.BaseMessages;
-import org.pentaho.di.repository.ObjectId;
-import org.pentaho.di.repository.RepositoryObject;
-import org.pentaho.di.repository.RepositoryObjectType;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.StepDialogInterface;
 import org.pentaho.di.trans.streaming.common.BaseStreamStepMeta;
-import org.pentaho.di.ui.core.ConstUI;
-import org.pentaho.di.ui.core.dialog.ErrorDialog;
-import org.pentaho.di.ui.core.gui.GUIResource;
 import org.pentaho.di.ui.core.widget.ColumnInfo;
 import org.pentaho.di.ui.core.widget.ComboVar;
 import org.pentaho.di.ui.core.widget.TableView;
 import org.pentaho.di.ui.core.widget.TextVar;
 import org.pentaho.di.ui.spoon.Spoon;
 import org.pentaho.di.ui.trans.step.BaseStreamingDialog;
-import org.pentaho.di.ui.util.DialogUtils;
 import org.pentaho.metastore.api.exceptions.MetaStoreException;
 
 import java.util.ArrayList;
@@ -76,14 +65,16 @@ import static java.util.Arrays.stream;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.ConnectionType.CLUSTER;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.ConnectionType.DIRECT;
 
-@SuppressWarnings( { "FieldCanBeLocal", "unused" } )
+@SuppressWarnings ( { "FieldCanBeLocal", "unused" } )
+@PluginDialog ( id = "KafkaConsumerInput", pluginType = PluginDialog.PluginType.STEP, image = "KafkaConsumerInput.svg" )
 public class KafkaConsumerInputDialog extends BaseStreamingDialog implements StepDialogInterface {
 
-  public static final int INPUT_WIDTH = 350;
-  private static Class<?> PKG = KafkaConsumerInputMeta.class;
+  private static final int INPUT_WIDTH = 350;
+  private static final Class<?> PKG = KafkaConsumerInputMeta.class;
   // for i18n purposes, needed by Translator2!!   $NON-NLS-1$
 
-  private static final Map<String, String> DEFAULT_OPTION_VALUES = ImmutableMap.of( ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest" );
+  private static final ImmutableMap<String, String> DEFAULT_OPTION_VALUES =
+    ImmutableMap.of( ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest" );
   private final KafkaFactory kafkaFactory = KafkaFactory.defaultFactory();
 
   private KafkaConsumerInputMeta consumerMeta;
@@ -91,22 +82,21 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
 
   private Label wlClusterName;
   private ComboVar wClusterName;
-  private Label wlTopic;
-  private Label wlConsumerGroup;
+
+
   private TextVar wConsumerGroup;
   private TableView fieldsTable;
   private TableView topicsTable;
   private TableView optionsTable;
 
-  private CTabItem wFieldsTab;
-  private CTabItem wOptionsTab;
 
-  private Composite wFieldsComp;
-  private Composite wOptionsComp;
   private Button wbDirect;
   private Button wbCluster;
   private Label wlBootstrapServers;
   private TextVar wBootstrapServers;
+  private Button wbAutoCommit;
+  private Button wbManualCommit;
+  private static final String REPOS_DELIM = "/";
 
   public KafkaConsumerInputDialog( Shell parent, Object in, TransMeta tr, String sname ) {
     super( parent, in, tr, sname );
@@ -121,6 +111,39 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
   @Override protected void createAdditionalTabs() {
     buildFieldsTab();
     buildOptionsTab();
+    buildOffsetManagement();
+  }
+
+  private void buildOffsetManagement() {
+    Group wOffsetGroup = new Group( wBatchComp, SWT.SHADOW_ETCHED_IN );
+    wOffsetGroup.setText( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.OffsetManagement" ) );
+    FormLayout flOffsetGroup = new FormLayout();
+    flOffsetGroup.marginHeight = 15;
+    flOffsetGroup.marginWidth = 15;
+    wOffsetGroup.setLayout( flOffsetGroup );
+
+    FormData fdOffsetGroup = new FormData();
+    fdOffsetGroup.top = new FormAttachment( wParallelism, 15 );
+    fdOffsetGroup.left = new FormAttachment( 0, 0 );
+    fdOffsetGroup.right = new FormAttachment( 100, 0 );
+    wOffsetGroup.setLayoutData( fdOffsetGroup );
+    props.setLook( wOffsetGroup );
+
+    wbAutoCommit = new Button( wOffsetGroup, SWT.RADIO );
+    wbAutoCommit.setText( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.AutoOffset" ) );
+    FormData fdbAutoCommit = new FormData();
+    fdbAutoCommit.top = new FormAttachment( 0, 0 );
+    fdbAutoCommit.left = new FormAttachment( 0, 0 );
+    wbAutoCommit.setLayoutData( fdbAutoCommit );
+    props.setLook( wbAutoCommit );
+
+    wbManualCommit = new Button( wOffsetGroup, SWT.RADIO );
+    wbManualCommit.setText( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.ManualOffset" ) );
+    FormData fdbManualCommit = new FormData();
+    fdbManualCommit.left = new FormAttachment( 0, 0 );
+    fdbManualCommit.top = new FormAttachment( wbAutoCommit, 10, SWT.BOTTOM );
+    wbManualCommit.setLayoutData( fdbManualCommit );
+    props.setLook( wbManualCommit );
   }
 
   @Override protected void buildSetup( Composite wSetupComp ) {
@@ -157,6 +180,7 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
         lsMod.modifyText( null );
         toggleVisibility( true );
       }
+
       @Override public void widgetDefaultSelected( final SelectionEvent selectionEvent ) {
         toggleVisibility( true );
       }
@@ -174,6 +198,7 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
         lsMod.modifyText( null );
         toggleVisibility( false );
       }
+
       @Override public void widgetDefaultSelected( final SelectionEvent selectionEvent ) {
         toggleVisibility( false );
       }
@@ -223,7 +248,7 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
     fdBootstrapServers.right = new FormAttachment( 78, 0 );
     wBootstrapServers.setLayoutData( fdBootstrapServers );
 
-    wlTopic = new Label( wSetupComp, SWT.LEFT );
+    Label wlTopic = new Label( wSetupComp, SWT.LEFT );
     props.setLook( wlTopic );
     wlTopic.setText( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.Topics" ) );
     FormData fdlTopic = new FormData();
@@ -240,8 +265,7 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
     fdConsumerGroup.bottom = new FormAttachment( 100, 0 );
     fdConsumerGroup.width = INPUT_WIDTH;
     wConsumerGroup.setLayoutData( fdConsumerGroup );
-
-    wlConsumerGroup = new Label( wSetupComp, SWT.LEFT );
+    Label wlConsumerGroup = new Label( wSetupComp, SWT.LEFT );
     props.setLook( wlConsumerGroup );
     wlConsumerGroup.setText( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.ConsumerGroup" ) );
     FormData fdlConsumerGroup = new FormData();
@@ -262,7 +286,7 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
     wSetupTab.setControl( wSetupComp );
   }
 
-  public void toggleVisibility( final boolean isDirect ) {
+  private void toggleVisibility( final boolean isDirect ) {
     wlBootstrapServers.setVisible( isDirect );
     wBootstrapServers.setVisible( isDirect );
     wlClusterName.setVisible( !isDirect );
@@ -270,10 +294,10 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
   }
 
   private void buildFieldsTab() {
-    wFieldsTab = new CTabItem( wTabFolder, SWT.NONE, 2 );
+    CTabItem wFieldsTab = new CTabItem( wTabFolder, SWT.NONE, 2 );
     wFieldsTab.setText( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.FieldsTab" ) );
 
-    wFieldsComp = new Composite( wTabFolder, SWT.NONE );
+    Composite wFieldsComp = new Composite( wTabFolder, SWT.NONE );
     props.setLook( wFieldsComp );
     FormLayout fieldsLayout = new FormLayout();
     fieldsLayout.marginHeight = 15;
@@ -294,10 +318,10 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
   }
 
   private void buildOptionsTab() {
-    wOptionsTab = new CTabItem( wTabFolder, SWT.NONE );
+    CTabItem wOptionsTab = new CTabItem( wTabFolder, SWT.NONE );
     wOptionsTab.setText( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.OptionsTab" ) );
 
-    wOptionsComp = new Composite( wTabFolder, SWT.NONE );
+    Composite wOptionsComp = new Composite( wTabFolder, SWT.NONE );
     props.setLook( wOptionsComp );
     FormLayout fieldsLayout = new FormLayout();
     fieldsLayout.marginHeight = 15;
@@ -435,7 +459,7 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
       return !( refName == KafkaConsumerField.Name.KEY || refName == KafkaConsumerField.Name.MESSAGE );
     } );
 
-    return new ColumnInfo[]{ referenceName, name, type };
+    return new ColumnInfo[] { referenceName, name, type };
   }
 
   private ColumnInfo[] getOptionsColumns() {
@@ -447,7 +471,7 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
       ColumnInfo.COLUMN_TYPE_TEXT, false, false );
     value.setUsingVariables( true );
 
-    return new ColumnInfo[]{ optionName, value };
+    return new ColumnInfo[] { optionName, value };
   }
 
   private void populateFieldData() {
@@ -491,10 +515,11 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
   }
 
   private void buildTopicsTable( Composite parentWidget, Control controlAbove, Control controlBelow ) {
-    ColumnInfo[] columns = new ColumnInfo[]{ new ColumnInfo( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.NameField" ),
-      ColumnInfo.COLUMN_TYPE_CCOMBO, new String[1], false ) };
+    ColumnInfo[] columns =
+      new ColumnInfo[] { new ColumnInfo( BaseMessages.getString( PKG, "KafkaConsumerInputDialog.NameField" ),
+        ColumnInfo.COLUMN_TYPE_CCOMBO, new String[ 1 ], false ) };
 
-    columns[0].setUsingVariables( true );
+    columns[ 0 ].setUsingVariables( true );
 
     int topicsCount = consumerMeta.getTopics().size();
 
@@ -502,8 +527,10 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
       CCombo ccom = (CCombo) e.widget;
       ComboVar cvar = (ComboVar) ccom.getParent();
 
-      KafkaDialogHelper kdh = new KafkaDialogHelper( wClusterName, cvar, wbCluster, wBootstrapServers, kafkaFactory,
-        consumerMeta.getNamedClusterService(), consumerMeta.getNamedClusterServiceLocator(), consumerMeta.getMetastoreLocator(), optionsTable,
+      KafkaDialogHelper kdh = new KafkaDialogHelper(
+        wClusterName, cvar, wbCluster, wBootstrapServers, kafkaFactory,
+        consumerMeta.getNamedClusterService(), consumerMeta.getNamedClusterServiceLocator(),
+        consumerMeta.getMetastoreLocator(), optionsTable,
         meta.getParentStepMeta() );
       kdh.clusterNameChanged( e );
     };
@@ -549,12 +576,12 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
   @Override
   protected void getData() {
     if ( meta.getTransformationPath() != null ) {
-      wTransPath.setText( meta.getTransformationPath() );
+      wFileSection.wFileName.setText( meta.getTransformationPath() );
     }
 
     try {
       List<String> names = consumerMeta.getNamedClusterService().listNames( spoonInstance.getMetaStore() );
-      wClusterName.setItems( names.toArray( new String[ names.size() ] ) );
+      wClusterName.setItems( names.toArray( new String[ 0 ] ) );
     } catch ( MetaStoreException e ) {
       log.logError( "Failed to get defined named clusters", e );
     }
@@ -582,27 +609,26 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
     if ( meta.getBatchDuration() != null ) {
       wBatchDuration.setText( meta.getBatchDuration() );
     }
-    if ( isDirect() ) {
-      wbCluster.setSelection( false );
-      wbDirect.setSelection( true );
-    } else {
-      wbCluster.setSelection( true );
-      wbDirect.setSelection( false );
+    if ( meta.getParallelism() != null ) {
+      wParallelism.setText( meta.getParallelism() );
     }
+
+    wbCluster.setSelection( !isDirect() );
+    wbDirect.setSelection( isDirect() );
+
     toggleVisibility( isDirect() );
+
+    wbAutoCommit.setSelection( consumerMeta.isAutoCommit() );
+    wbManualCommit.setSelection( !consumerMeta.isAutoCommit() );
 
     specificationMethod = meta.getSpecificationMethod();
     switch ( specificationMethod ) {
       case FILENAME:
-        wTransPath.setText( Const.NVL( meta.getFileName(), "" ) );
+        wFileSection.wFileName.setText( Const.NVL( meta.getFileName(), "" ) );
         break;
       case REPOSITORY_BY_NAME:
-        String fullPath = Const.NVL( meta.getDirectoryPath(), "" ) + "/" + Const.NVL( meta.getTransName(), "" );
-        wTransPath.setText( fullPath );
-        break;
-      case REPOSITORY_BY_REFERENCE:
-        referenceObjectId = meta.getTransObjectId();
-        getByReferenceData( referenceObjectId );
+        String fullPath = Const.NVL( meta.getDirectoryPath(), "" ) + REPOS_DELIM + Const.NVL( meta.getTransName(), "" );
+        wFileSection.wFileName.setText( fullPath );
         break;
       default:
         break;
@@ -616,22 +642,6 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
     return DIRECT.equals( consumerMeta.getConnectionType() );
   }
 
-  private Image getImage() {
-    PluginInterface plugin =
-      PluginRegistry.getInstance().getPlugin( StepPluginType.class, stepMeta.getStepMetaInterface() );
-    String id = plugin.getIds()[ 0 ];
-    if ( id != null ) {
-      return GUIResource.getInstance().getImagesSteps().get( id ).getAsBitmapForSize( shell.getDisplay(),
-        ConstUI.ICON_SIZE, ConstUI.ICON_SIZE );
-    }
-    return null;
-  }
-
-  private void cancel() {
-    meta.setChanged( false );
-    dispose();
-  }
-
   @Override protected void additionalOks( BaseStreamStepMeta meta ) {
     setTopicsFromTable();
 
@@ -639,6 +649,7 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
     consumerMeta.setConsumerGroup( wConsumerGroup.getText() );
     consumerMeta.setConnectionType( wbDirect.getSelection() ? DIRECT : CLUSTER );
     consumerMeta.setDirectBootstrapServers( wBootstrapServers.getText() );
+    consumerMeta.setAutoCommit( wbAutoCommit.getSelection() );
     setFieldsFromTable();
     setOptionsFromTable();
   }
@@ -681,23 +692,6 @@ public class KafkaConsumerInputDialog extends BaseStreamingDialog implements Ste
 
   private void setOptionsFromTable() {
     consumerMeta.setConfig( KafkaDialogHelper.getConfig( optionsTable ) );
-  }
-
-  private void getByReferenceData( ObjectId transObjectId ) {
-    try {
-      RepositoryObject transInf = repository.getObjectInformation( transObjectId, RepositoryObjectType.TRANSFORMATION );
-      String
-              path =
-              DialogUtils
-                      .getPath( transMeta.getRepositoryDirectory().getPath(),
-                              transInf.getRepositoryDirectory().getPath() );
-      String fullPath = Const.NVL( path, "" ) + "/" + Const.NVL( transInf.getName(), "" );
-      wTransPath.setText( fullPath );
-    } catch ( KettleException e ) {
-      new ErrorDialog( shell,
-              BaseMessages.getString( PKG, "JobEntryTransDialog.Exception.UnableToReferenceObjectId.Title" ),
-              BaseMessages.getString( PKG, "JobEntryTransDialog.Exception.UnableToReferenceObjectId.Message" ), e );
-    }
   }
 
   @Override protected String[] getFieldNames() {

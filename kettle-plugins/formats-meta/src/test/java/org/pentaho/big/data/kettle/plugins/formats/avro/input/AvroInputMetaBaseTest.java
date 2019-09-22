@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -21,36 +21,11 @@
  ******************************************************************************/
 package org.pentaho.big.data.kettle.plugins.formats.avro.input;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
-
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
-
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
-import org.pentaho.big.data.kettle.plugins.formats.FormatInputFile;
 import org.pentaho.di.core.database.DatabaseMeta;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettlePluginException;
@@ -68,6 +43,27 @@ import org.pentaho.hadoop.shim.api.format.AvroSpec;
 import org.pentaho.metastore.api.IMetaStore;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @RunWith( MockitoJUnitRunner.class )
 public class AvroInputMetaBaseTest {
@@ -104,13 +100,15 @@ public class AvroInputMetaBaseTest {
       public StepDataInterface getStepData() {
         return null;
       }
+
       @Override
-      public StepInterface getStep( StepMeta stepMeta, StepDataInterface stepDataInterface, int copyNr, TransMeta transMeta, Trans trans ) {
+      public StepInterface getStep( StepMeta stepMeta, StepDataInterface stepDataInterface, int copyNr,
+                                    TransMeta transMeta, Trans trans ) {
         return null;
       }
     } );
 
-    NamedClusterEmbedManager  manager = mock( NamedClusterEmbedManager.class );
+    NamedClusterEmbedManager manager = mock( NamedClusterEmbedManager.class );
 
     TransMeta parentTransMeta = mock( TransMeta.class );
     doReturn( manager ).when( parentTransMeta ).getNamedClusterEmbedManager();
@@ -131,10 +129,8 @@ public class AvroInputMetaBaseTest {
     meta.setInputFields( Arrays.asList( field ) );
 
     assertNotNull( meta.getXML() );
-    verify( meta ).getFilename();
-    verify( meta ).getSchemaFilename();
-    verify( meta ).isUseFieldAsInputStream();
-    verify( meta ).getInputStreamFieldName();
+    verify( meta ).getDataLocation();
+    verify( meta ).getSchemaLocation();
 
     verify( field ).getAvroFieldName();
     verify( field, times( 3 ) ).getPentahoFieldName();
@@ -142,29 +138,12 @@ public class AvroInputMetaBaseTest {
   }
 
   @Test
-  public void testGetXmlWorksIfWeUpdateOnlyPartOfInputFilesInformation() throws Exception {
-    meta.inputFiles = new FormatInputFile();
-    meta.inputFiles.fileName = new String[] { FILE_NAME_VALID_PATH };
-
-    meta.getXML();
-
-    assertEquals( meta.inputFiles.fileName.length, meta.inputFiles.fileMask.length );
-    assertEquals( meta.inputFiles.fileName.length, meta.inputFiles.excludeFileMask.length );
-    assertEquals( meta.inputFiles.fileName.length, meta.inputFiles.fileRequired.length );
-    assertEquals( meta.inputFiles.fileName.length, meta.inputFiles.includeSubFolders.length );
-    //specific for bigdata format
-    assertEquals( meta.inputFiles.fileName.length, meta.inputFiles.environment.length );
-  }
-
-  @Test
   public void testSaveRep() throws KettleException {
     meta.setInputFields( Arrays.asList( field ) );
 
     meta.saveRep( rep, metaStore, id_transformation, id_step );
-    verify( meta ).getFilename();
-    verify( meta ).getSchemaFilename();
-    verify( meta ).isUseFieldAsInputStream();
-    verify( meta ).getInputStreamFieldName();
+    verify( meta ).getDataLocation();
+    verify( meta ).getSchemaLocation();
 
     verify( field ).getAvroFieldName();
     verify( field ).getPentahoFieldName();
@@ -172,49 +151,21 @@ public class AvroInputMetaBaseTest {
   }
 
   @Test
-  public void testLoadXML() throws KettleException, URISyntaxException, SAXException, IOException, ParserConfigurationException {
-    URL resource =  getClass().getClassLoader().getResource( getClass().getPackage().getName().replace( ".", "/" ) + "/AvroInput.xml" );
+  public void testLoadXML()
+    throws KettleException, URISyntaxException, SAXException, IOException, ParserConfigurationException {
+    URL resource = getClass().getClassLoader()
+      .getResource( getClass().getPackage().getName().replace( ".", "/" ) + "/AvroInput.xml" );
     Path path = Paths.get( resource.toURI() );
-    Node node =  DocumentBuilderFactory.newInstance().newDocumentBuilder().parse( Files.newInputStream( path ) ).getDocumentElement();
+    Node node = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse( Files.newInputStream( path ) )
+      .getDocumentElement();
     meta.loadXML( node, databases, metaStore );
-    assertEquals( "SampleFileName", meta.getFilename() );
-    assertEquals( "SampleSchemaFileName", meta.getSchemaFilename() );
-    assertEquals( "StreamFieldName", meta.getInputStreamFieldName() );
-    assertEquals( true, meta.isUseFieldAsInputStream() );
+    assertEquals( "SampleFileName", meta.getDataLocation() );
+    assertEquals( "SampleSchemaFileName", meta.getSchemaLocation() );
 
-    AvroInputField field  = meta.getInputFields()[0];
+    AvroInputField field = meta.getInputFields()[ 0 ];
     assertEquals( "SampleName", field.getPentahoFieldName() );
     assertEquals( "SamplePath", field.getAvroFieldName() );
     assertEquals( "string", field.getAvroType().getType() );
   }
 
-  @Test
-  public void testReadRepL() throws KettleException, URISyntaxException, SAXException, IOException, ParserConfigurationException {
-    when( rep.getStepAttributeString( eq( id_step ), eq( "filename" ) ) ).thenReturn( "SampleFileName" );
-    when( rep.getStepAttributeString( eq( id_step ), eq( "schemaFilename" ) ) ).thenReturn( "SampleSchemaFileName" );
-    when( rep.getStepAttributeString( eq( id_step ), eq(  "stream_fieldname" ) ) ).thenReturn( "StreamFieldName" );
-    when( rep.getStepAttributeBoolean( eq( id_step ), eq(  "useStreamField" ) ) ).thenReturn( true );
-
-    when( rep.countNrStepAttributes( eq( id_step ), eq( "type" ) ) ).thenReturn( 1 );
-
-    when( rep.getStepAttributeString( eq( id_step ), anyInt(), eq( "path" ) ) ).thenReturn( "SamplePath" );
-    when( rep.getStepAttributeString( eq( id_step ), anyInt(), eq( "name" ) ) ).thenReturn( "SampleName" );
-    when( rep.getStepAttributeString( eq( id_step ), anyInt(), eq( "type" ) ) ).thenReturn( "0" );
-    when( rep.getStepAttributeString( eq( id_step ), anyInt(), eq( "nullable" ) ) ).thenReturn( "SampleDefault" );
-    when( rep.getStepAttributeString( eq( id_step ), anyInt(), eq( "default" ) ) ).thenReturn( "false" );
-    when( rep.getStepAttributeString( eq( id_step ), anyInt(), eq( "sourcetype" ) ) ).thenReturn( "0" );
-    when( rep.getStepAttributeString( eq( id_step ), anyInt(), eq( "avro_type" ) ) ).thenReturn( "string" );
-
-    meta.readRep( rep, metaStore, id_step, databases );
-    assertEquals( "SampleFileName", meta.getFilename() );
-    assertEquals( "SampleSchemaFileName", meta.getSchemaFilename() );
-    assertEquals( "StreamFieldName", meta.getInputStreamFieldName() );
-    assertEquals( true, meta.isUseFieldAsInputStream() );
-
-
-    AvroInputField field = meta.getInputFields()[0];
-    assertEquals( "SampleName", field.getPentahoFieldName() );
-    assertEquals( "SamplePath", field.getAvroFieldName() );
-    assertEquals( "string", field.getAvroType().getType() );
-  }
 }

@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,31 +22,18 @@
 
 package org.pentaho.big.data.kettle.plugins.kafka;
 
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.SslConfigs;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.TableItem;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
-import org.pentaho.big.data.api.cluster.service.locator.NamedClusterServiceLocator;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterServiceLocator;
 import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.value.ValueMetaBase;
@@ -57,6 +44,14 @@ import org.pentaho.di.ui.core.widget.ComboVar;
 import org.pentaho.di.ui.core.widget.TableView;
 import org.pentaho.di.ui.core.widget.TextVar;
 import org.pentaho.osgi.metastore.locator.api.MetastoreLocator;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.ConnectionType.CLUSTER;
 import static org.pentaho.big.data.kettle.plugins.kafka.KafkaConsumerInputMeta.ConnectionType.DIRECT;
@@ -73,7 +68,11 @@ public class KafkaDialogHelper {
   private TableView optionsTable;
   private StepMeta parentMeta;
 
-  public KafkaDialogHelper( ComboVar wClusterName, ComboVar wTopic, Button wbCluster, TextVar wBootstrapServers,
+  // squid:S00107 cannot consolidate params because they can come from either KafkaConsumerInputMeta or
+  // KafkaProducerOutputMeta which do not share a common interface.  Would increase complexity for the trivial gain of
+  // less parameters in the constructor
+  @SuppressWarnings( "squid:S00107" )
+  KafkaDialogHelper( ComboVar wClusterName, ComboVar wTopic, Button wbCluster, TextVar wBootstrapServers,
                             KafkaFactory kafkaFactory, NamedClusterService namedClusterService,
                             NamedClusterServiceLocator namedClusterServiceLocator, MetastoreLocator metastoreLocator,
                             TableView optionsTable, StepMeta parentMeta ) {
@@ -89,27 +88,29 @@ public class KafkaDialogHelper {
     this.parentMeta = parentMeta;
   }
 
-  public void clusterNameChanged( @SuppressWarnings( "unused" ) Event event ) {
-    String current = wTopic.getText();
+  @SuppressWarnings ( "unused" ) public void clusterNameChanged( Event event ) {
     if ( ( wbCluster.getSelection() && StringUtil.isEmpty( wClusterName.getText() ) )
       || !wbCluster.getSelection() && StringUtil.isEmpty( wBootstrapServers.getText() ) ) {
       return;
     }
+    String current = wTopic.getText();
     String clusterName = wClusterName.getText();
-    boolean isCluster = wbCluster == null || wbCluster.getSelection();
+    boolean isCluster = wbCluster.getSelection();
     String directBootstrapServers = wBootstrapServers == null ? "" : wBootstrapServers.getText();
     Map<String, String> config = getConfig( optionsTable );
-    CompletableFuture
-      .supplyAsync( () -> listTopics( clusterName, isCluster, directBootstrapServers, config ) )
-      .thenAccept( ( topicMap ) -> Display.getDefault().syncExec( () -> populateTopics( topicMap, current ) ) );
-  }
-
-  private void populateTopics( Map<String, List<PartitionInfo>> topicMap, String current ) {
     if ( !wTopic.getCComboWidget().isDisposed() ) {
       wTopic.getCComboWidget().removeAll();
     }
+    CompletableFuture
+      .supplyAsync( () -> listTopics( clusterName, isCluster, directBootstrapServers, config ) )
+      .thenAccept( topicMap -> Display.getDefault().syncExec( () -> populateTopics( topicMap, current ) ) );
+  }
+
+  private void populateTopics( Map<String, List<PartitionInfo>> topicMap, String current ) {
+
     topicMap.keySet().stream()
-      .filter( key -> !"__consumer_offsets".equals( key ) ).sorted().forEach( key -> {
+      .filter( key -> !"__consumer_offsets".equals( key ) ).sorted()
+      .forEach( key -> {
         if ( !wTopic.isDisposed() ) {
           wTopic.add( key );
         }
@@ -120,7 +121,8 @@ public class KafkaDialogHelper {
   }
 
   private Map<String, List<PartitionInfo>> listTopics(
-    final String clusterName, final boolean isCluster, final String directBootstrapServers, Map<String, String> config ) {
+    final String clusterName, final boolean isCluster, final String directBootstrapServers,
+    Map<String, String> config ) {
     Consumer kafkaConsumer = null;
     try {
       KafkaConsumerInputMeta localMeta = new KafkaConsumerInputMeta();
@@ -133,7 +135,7 @@ public class KafkaDialogHelper {
       localMeta.setConfig( config );
       localMeta.setParentStepMeta( parentMeta );
       kafkaConsumer = kafkaFactory.consumer( localMeta, Function.identity() );
-      @SuppressWarnings( "unchecked" ) Map<String, List<PartitionInfo>> topicMap = kafkaConsumer.listTopics();
+      @SuppressWarnings ( "unchecked" ) Map<String, List<PartitionInfo>> topicMap = kafkaConsumer.listTopics();
       return topicMap;
     } catch ( Exception e ) {
       return Collections.emptyMap();
@@ -151,8 +153,8 @@ public class KafkaDialogHelper {
     try {
       RowMetaInterface rmi = transMeta.getPrevStepFields( stepName );
       List ls = rmi.getValueMetaList();
-      for ( int i = 0; i < ls.size(); i++ ) {
-        ValueMetaBase vmb = (ValueMetaBase) ls.get( i );
+      for ( Object l : ls ) {
+        ValueMetaBase vmb = (ValueMetaBase) l;
         comboVar.add( vmb.getName() );
       }
     } catch ( KettleStepException ex ) {
@@ -160,57 +162,18 @@ public class KafkaDialogHelper {
     }
   }
 
-  public static List<String> getConsumerConfigOptionNames() {
-    List<String> optionNames = getConfigOptionNames( ConsumerConfig.class );
-    Stream.of( ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, ConsumerConfig.GROUP_ID_CONFIG,
-        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG ).forEach( optionNames::remove );
-    return optionNames;
-  }
-
-  public static List<String> getProducerConfigOptionNames() {
-    List<String> optionNames = getConfigOptionNames( ProducerConfig.class );
-    Stream.of( ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, ProducerConfig.CLIENT_ID_CONFIG,
-        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG )
-        .forEach( optionNames::remove );
-    return optionNames;
-  }
-
   public static List<String> getConsumerAdvancedConfigOptionNames() {
     return Arrays.asList( ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
-        SslConfigs.SSL_KEY_PASSWORD_CONFIG, SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG,
-        SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG,
-        SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG );
+      SslConfigs.SSL_KEY_PASSWORD_CONFIG, SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG,
+      SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG,
+      SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG );
   }
 
   public static List<String> getProducerAdvancedConfigOptionNames() {
     return Arrays.asList( ProducerConfig.COMPRESSION_TYPE_CONFIG,
-        SslConfigs.SSL_KEY_PASSWORD_CONFIG, SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG,
-        SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG,
-        SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG );
-  }
-
-  private static List<String> getConfigOptionNames( Class cl ) {
-    return getStaticField( cl, "CONFIG" ).map( config ->
-        ( (ConfigDef) config ).configKeys().keySet().stream().sorted().collect( Collectors.toList() )
-    ).orElse( new ArrayList<>() );
-  }
-
-  private static Optional<Object> getStaticField( Class cl, String fieldName ) {
-    Field field = null;
-    boolean isAccessible = false;
-    try {
-      field = cl.getDeclaredField( fieldName );
-      isAccessible = field.isAccessible();
-      field.setAccessible( true );
-      return Optional.ofNullable( field.get( null ) );
-    } catch ( NoSuchFieldException | IllegalAccessException e ) {
-      return Optional.empty();
-    } finally {
-      if ( field != null ) {
-        field.setAccessible( isAccessible );
-      }
-    }
+      SslConfigs.SSL_KEY_PASSWORD_CONFIG, SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG,
+      SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG,
+      SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG );
   }
 
   public static Map<String, String> getConfig( TableView optionsTable ) {

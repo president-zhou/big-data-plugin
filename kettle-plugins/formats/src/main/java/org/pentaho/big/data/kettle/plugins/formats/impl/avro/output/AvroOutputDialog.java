@@ -44,6 +44,7 @@ import org.eclipse.swt.widgets.MessageBox;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableItem;
+import org.pentaho.big.data.kettle.plugins.formats.avro.AvroTypeConverter;
 import org.pentaho.big.data.kettle.plugins.formats.avro.output.AvroOutputField;
 import org.pentaho.big.data.kettle.plugins.formats.impl.NullableValuesEnum;
 import org.pentaho.big.data.kettle.plugins.formats.impl.avro.BaseAvroStepDialog;
@@ -73,7 +74,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public class AvroOutputDialog extends BaseAvroStepDialog<AvroOutputMeta> implements StepDialogInterface {
+public class AvroOutputDialog extends BaseAvroStepDialog implements StepDialogInterface {
 
   private static final Class<?> PKG = AvroOutputMeta.class;
 
@@ -111,9 +112,11 @@ public class AvroOutputDialog extends BaseAvroStepDialog<AvroOutputMeta> impleme
   private Button wTimeInFileName;
   private Button wSpecifyDateTimeFormat;
   private ComboVar wDateTimeFormat;
+  private AvroOutputMeta meta;
 
   public AvroOutputDialog( Shell parent, Object avroOutputMeta, TransMeta transMeta, String sname ) {
     this( parent, (AvroOutputMeta) avroOutputMeta, transMeta, sname );
+    this.meta = (AvroOutputMeta) avroOutputMeta;
   }
 
   public AvroOutputDialog( Shell parent, AvroOutputMeta avroOutputMeta, TransMeta transMeta, String sname ) {
@@ -499,14 +502,14 @@ public class AvroOutputDialog extends BaseAvroStepDialog<AvroOutputMeta> impleme
       return;
     }
 
-    getInfo( meta, false );
+    getInfo( false );
     dispose();
   }
 
   /**
    * Read the data from the meta object and show it in this dialog.
    */
-  protected void getData( AvroOutputMeta meta ) {
+  protected void getData(  ) {
     wOverwriteExistingFile.setSelection( meta.isOverrideOutput() );
 
     if ( meta.getFilename() != null ) {
@@ -549,7 +552,7 @@ public class AvroOutputDialog extends BaseAvroStepDialog<AvroOutputMeta> impleme
 
   // ui -> meta
   @Override
-  protected void getInfo( AvroOutputMeta meta, boolean preview ) {
+  protected void getInfo( boolean preview ) {
     meta.setOverrideOutput( wOverwriteExistingFile.getSelection() );
     meta.setFilename( wPath.getText() );
     meta.setDocValue( wDocValue.getText() );
@@ -775,7 +778,7 @@ public class AvroOutputDialog extends BaseAvroStepDialog<AvroOutputMeta> impleme
           tableItem.setText( nameColumn[c], Const.NVL( v.getName(), "" ) );
         }
 
-        String avroTypeName = meta.convertToAvroType( v.getType() );
+        String avroTypeName = AvroTypeConverter.convertToAvroType( v.getType() );
         if ( dataTypeColumn != null ) {
           for ( int c = 0; c < dataTypeColumn.length; c++ ) {
             tableItem.setText( dataTypeColumn[c], avroTypeName );

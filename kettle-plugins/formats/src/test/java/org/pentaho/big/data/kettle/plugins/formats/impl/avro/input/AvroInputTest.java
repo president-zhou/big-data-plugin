@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -29,13 +29,14 @@ import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
-import org.pentaho.big.data.api.cluster.NamedCluster;
-import org.pentaho.big.data.api.cluster.NamedClusterService;
-import org.pentaho.big.data.api.cluster.service.locator.NamedClusterServiceLocator;
-import org.pentaho.bigdata.api.format.FormatService;
+import org.pentaho.hadoop.shim.api.cluster.NamedCluster;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterService;
+import org.pentaho.hadoop.shim.api.cluster.NamedClusterServiceLocator;
+import org.pentaho.big.data.kettle.plugins.formats.avro.input.AvroInputMetaBase;
 import org.pentaho.di.core.RowMetaAndData;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.logging.LogLevel;
+import org.pentaho.di.core.osgi.api.MetastoreLocatorOsgi;
 import org.pentaho.di.core.row.RowMeta;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.core.row.value.ValueMetaBoolean;
@@ -46,6 +47,7 @@ import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.RowHandler;
 import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepMeta;
+import org.pentaho.hadoop.shim.api.format.FormatService;
 import org.pentaho.hadoop.shim.api.format.IPentahoAvroInputFormat;
 
 import java.util.Arrays;
@@ -87,6 +89,8 @@ public class AvroInputTest {
   @Mock
   private NamedClusterService mockNamedClusterService;
   @Mock
+  private MetastoreLocatorOsgi mockMetaStoreLocator;
+  @Mock
   private FormatService mockFormatService;
   @Mock
   private AvroInputData sdi;
@@ -110,9 +114,8 @@ public class AvroInputTest {
     currentInputRow = 0;
     setInputRows();
     setAvroRows();
-    avroInputMeta = new AvroInputMeta( mockNamedClusterServiceLocator, mockNamedClusterService );
-    avroInputMeta.setUseFieldAsInputStream( true );
-    avroInputMeta.setInputStreamFieldName( INPUT_STREAM_FIELD_NAME );
+    avroInputMeta = new AvroInputMeta( mockNamedClusterServiceLocator, mockNamedClusterService, mockMetaStoreLocator );
+    avroInputMeta.setDataLocation( INPUT_STREAM_FIELD_NAME, AvroInputMetaBase.LocationDescriptor.FIELD_NAME );
     when( mockPentahoAvroInputFormat.getInputStreamFieldName() ).thenReturn( INPUT_STREAM_FIELD_NAME );
 
     avroInputMeta.setParentStepMeta( mockStepMeta );
@@ -131,7 +134,7 @@ public class AvroInputTest {
       e.printStackTrace();
     }
 
-    when( mockFormatService.createInputFormat( IPentahoAvroInputFormat.class ) )
+    when( mockFormatService.createInputFormat( IPentahoAvroInputFormat.class, avroInputMeta.getNamedCluster() ) )
       .thenReturn( mockPentahoAvroInputFormat );
     when( mockNamedClusterServiceLocator.getService( any( NamedCluster.class ), any( Class.class ) ) )
       .thenReturn( mockFormatService );
@@ -177,15 +180,6 @@ public class AvroInputTest {
     List<Object[]> dataCaptured = dataCaptor.getAllValues();
     for ( int rowNum = 0; rowNum < 4; rowNum++ ) {
       assertEquals( 0, rowMeta.get( rowNum ).indexOfValue( "str" ) );
-      assertEquals( 3, rowMeta.get( rowNum ).indexOfValue( INPUT_STREAM_FIELD_NAME ) );
-      assertEquals( 4, rowMeta.get( rowNum ).indexOfValue( PASS_FIELD_NAME ) );
-      if ( rowNum < 2 ) {
-        assertEquals( "avroFile1", dataCaptured.get( rowNum )[ 3 ] );
-        assertEquals( "pass1", dataCaptured.get( rowNum )[ 4 ] );
-      } else {
-        assertEquals( "avroFile2", dataCaptured.get( rowNum )[ 3 ] );
-        assertEquals( "pass2", dataCaptured.get( rowNum )[ 4 ] );
-      }
       assertEquals( "string" + ( rowNum % 2 + 1 ), dataCaptured.get( rowNum )[ 0 ] );
     }
 

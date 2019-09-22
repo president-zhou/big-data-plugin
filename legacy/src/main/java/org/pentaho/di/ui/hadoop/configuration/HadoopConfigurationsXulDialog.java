@@ -2,7 +2,7 @@
  *
  * Pentaho Big Data
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -63,7 +63,7 @@ public class HadoopConfigurationsXulDialog extends AbstractXulEventHandler {
   private boolean accept = false;
 
   public HadoopConfigurationsXulDialog( Shell aShell, List<HadoopConfigurationInfo> hadoopConfigurationInfos ) {
-    this.shell = new Shell( aShell, SWT.SHELL_TRIM | SWT.APPLICATION_MODAL );
+    this.shell = aShell;
     this.hadoopConfigurationInfos = new ArrayList<>( hadoopConfigurationInfos );
     Collections.sort( this.hadoopConfigurationInfos, new Comparator<HadoopConfigurationInfo>() {
       @Override public int compare( HadoopConfigurationInfo o1, HadoopConfigurationInfo o2 ) {
@@ -156,7 +156,7 @@ public class HadoopConfigurationsXulDialog extends AbstractXulEventHandler {
       // Parent is modal so we have to be as well
       @Override
       protected Shell createShell( Shell parent ) {
-        return new Shell( parent, SWT.RESIZE | SWT.MAX | SWT.MIN | SWT.APPLICATION_MODAL );
+        return new Shell( parent, SWT.CLOSE | SWT.RESIZE | SWT.MAX | SWT.MIN | SWT.APPLICATION_MODAL );
       }
     };
 

@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2018 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2018-2019 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -19,28 +19,36 @@
  * limitations under the License.
  *
  ******************************************************************************/
-
 package org.pentaho.big.data.kettle.plugins.formats.orc.input;
 
 import java.util.List;
 import org.apache.commons.vfs2.FileObject;
 import org.pentaho.big.data.kettle.plugins.formats.FormatInputFile;
 import org.pentaho.big.data.kettle.plugins.formats.orc.OrcInputField;
+import org.pentaho.big.data.kettle.plugins.formats.orc.OrcTypeConverter;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.database.DatabaseMeta;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleFileException;
+import org.pentaho.di.core.exception.KettlePluginException;
+import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.exception.KettleXMLException;
+import org.pentaho.di.core.row.RowMetaInterface;
+import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.core.row.value.ValueMetaBase;
 import org.pentaho.di.core.row.value.ValueMetaFactory;
+import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.vfs.AliasedFileObject;
 import org.pentaho.di.core.vfs.KettleVFS;
 import org.pentaho.di.core.xml.XMLHandler;
 import org.pentaho.di.repository.ObjectId;
 import org.pentaho.di.repository.Repository;
+import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.steps.file.BaseFileInputAdditionalField;
 import org.pentaho.di.trans.steps.file.BaseFileInputMeta;
 import org.pentaho.di.workarounds.ResolvableResource;
+import org.pentaho.hadoop.shim.api.format.IOrcInputField;
+import org.pentaho.hadoop.shim.api.format.OrcSpec;
 import org.pentaho.metastore.api.IMetaStore;
 import org.w3c.dom.Node;
 
@@ -117,7 +125,13 @@ public abstract class OrcInputMetaBase extends
       retval.append( "        " ).append( XMLHandler.addTagValue( "path", field.getFormatFieldName() ) );
       retval.append( "        " ).append( XMLHandler.addTagValue( "name", field.getPentahoFieldName() ) );
       retval.append( "        " ).append( XMLHandler.addTagValue( "type", field.getTypeDesc() ) );
-      retval.append( "        " ).append( XMLHandler.addTagValue( "orc_type", field.getOrcType().getName() ) );
+      OrcSpec.DataType orcDataType = field.getOrcType();
+      if ( orcDataType != null && orcDataType.getName() != null && !orcDataType.getName().equalsIgnoreCase( OrcSpec.DataType.NULL.getName() ) ) {
+        retval.append( "        " ).append( XMLHandler.addTagValue( "orc_type", orcDataType.getName() ) );
+      } else {
+        retval.append( "        " ).append( XMLHandler.addTagValue( "orc_type", OrcTypeConverter.convertToOrcType( field.getTypeDesc() ) ) );
+      }
+
       if ( field.getStringFormat() != null ) {
         retval.append( "        " ).append( XMLHandler.addTagValue( "format", field.getStringFormat() ) );
       }
@@ -133,13 +147,15 @@ public abstract class OrcInputMetaBase extends
     throws KettleException {
     try {
       rep.saveStepAttribute( id_transformation, id_step, "passing_through_fields", inputFiles.passingThruFields );
-      for ( int i = 0; i < inputFiles.fileName.length; i++ ) {
-        rep.saveStepAttribute( id_transformation, id_step, i, "environment", inputFiles.environment[i] );
-        rep.saveStepAttribute( id_transformation, id_step, i, "file_name", inputFiles.fileName[i] );
-        rep.saveStepAttribute( id_transformation, id_step, i, "file_mask", inputFiles.fileMask[i] );
-        rep.saveStepAttribute( id_transformation, id_step, i, "exclude_file_mask", inputFiles.excludeFileMask[i] );
-        rep.saveStepAttribute( id_transformation, id_step, i, "file_required", inputFiles.fileRequired[i] );
-        rep.saveStepAttribute( id_transformation, id_step, i, "include_subfolders", inputFiles.includeSubFolders[i] );
+      if ( !( inputFiles.fileName.length == 1 && inputFiles.fileName[0].equalsIgnoreCase( "" ) ) ) {
+        for ( int i = 0; i < inputFiles.fileName.length; i++ ) {
+          rep.saveStepAttribute( id_transformation, id_step, i, "environment", inputFiles.environment[i] );
+          rep.saveStepAttribute( id_transformation, id_step, i, "file_name", inputFiles.fileName[i] );
+          rep.saveStepAttribute( id_transformation, id_step, i, "file_mask", inputFiles.fileMask[i] );
+          rep.saveStepAttribute( id_transformation, id_step, i, "exclude_file_mask", inputFiles.excludeFileMask[i] );
+          rep.saveStepAttribute( id_transformation, id_step, i, "file_required", inputFiles.fileRequired[i] );
+          rep.saveStepAttribute( id_transformation, id_step, i, "include_subfolders", inputFiles.includeSubFolders[i] );
+        }
       }
 
       for ( int i = 0; i < inputFields.length; i++ ) {
@@ -148,7 +164,13 @@ public abstract class OrcInputMetaBase extends
         rep.saveStepAttribute( id_transformation, id_step, i, "path", field.getFormatFieldName() );
         rep.saveStepAttribute( id_transformation, id_step, i, "name", field.getPentahoFieldName() );
         rep.saveStepAttribute( id_transformation, id_step, i, "type", field.getTypeDesc() );
-        rep.saveStepAttribute( id_transformation, id_step, i, "orc_type", field.getOrcType().getName() );
+        OrcSpec.DataType orcDataType = field.getOrcType();
+        if ( orcDataType != null && orcDataType.getName() != null && !orcDataType.getName().equalsIgnoreCase( OrcSpec.DataType.NULL.getName() ) ) {
+          rep.saveStepAttribute( id_transformation, id_step, i, "orc_type", orcDataType.getName() );
+        } else {
+          rep.saveStepAttribute( id_transformation, id_step, i, "orc_type", OrcTypeConverter.convertToOrcType( field.getTypeDesc() ) );
+        }
+
         if ( field.getStringFormat() != null ) {
           rep.saveStepAttribute( id_transformation, id_step, i, "format", field.getStringFormat() );
         }
@@ -192,7 +214,12 @@ public abstract class OrcInputMetaBase extends
       field.setFormatFieldName( XMLHandler.getTagValue( fnode, "path" ) );
       field.setPentahoFieldName( XMLHandler.getTagValue( fnode, "name" ) );
       field.setPentahoType( ValueMetaFactory.getIdForValueMeta( XMLHandler.getTagValue( fnode, "type" ) ) );
-      field.setOrcType( XMLHandler.getTagValue( fnode, "orc_type" ) );
+      String orcType = XMLHandler.getTagValue( fnode, "orc_type" );
+      if ( orcType != null && !orcType.equalsIgnoreCase( "null" ) ) {
+        field.setOrcType( orcType );
+      } else {
+        field.setOrcType( OrcTypeConverter.convertToOrcType( field.getPentahoType() ) );
+      }
       String stringFormat = XMLHandler.getTagValue( fnode, "format" );
       field.setStringFormat( stringFormat == null ? "" : stringFormat );
       this.inputFields[ i ] = field;
@@ -223,7 +250,7 @@ public abstract class OrcInputMetaBase extends
         }
       }
 
-      int nrfields = rep.countNrStepAttributes( id_step, "field_name" );
+      int nrfields = rep.countNrStepAttributes( id_step, "name" );
       inputFields = new OrcInputField[ nrfields ];
       for ( int i = 0; i < nrfields; i++ ) {
         OrcInputField field = new OrcInputField();
@@ -279,6 +306,36 @@ public abstract class OrcInputMetaBase extends
           throw new RuntimeException( e );
         }
       }
+    }
+  }
+
+  @Override
+  public void getFields( RowMetaInterface rowMeta, String origin, RowMetaInterface[] info, StepMeta nextStep,
+                         VariableSpace space, Repository repository, IMetaStore metaStore ) throws
+    KettleStepException {
+    try {
+      if ( !inputFiles.passingThruFields ) {
+        // all incoming fields are not transmitted !
+        rowMeta.clear();
+      } else {
+        if ( info != null ) {
+          boolean found = false;
+          for ( int i = 0; i < info.length && !found; i++ ) {
+            if ( info[i] != null ) {
+              rowMeta.mergeRowMeta( info[i], origin );
+              found = true;
+            }
+          }
+        }
+      }
+      for ( IOrcInputField field : getInputFields() ) {
+        String value = space.environmentSubstitute( field.getPentahoFieldName() );
+        ValueMetaInterface v = ValueMetaFactory.createValueMeta( value, field.getPentahoType() );
+        v.setOrigin( origin );
+        rowMeta.addValueMeta( v );
+      }
+    } catch ( KettlePluginException e ) {
+      throw new KettleStepException( "Unable to create value type", e );
     }
   }
 }

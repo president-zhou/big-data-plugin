@@ -5,18 +5,24 @@
   <parent>
     <groupId>pentaho</groupId>
     <artifactId>pentaho-big-data-assemblies</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
   <artifactId>pentaho-big-data-assemblies-pmr-libraries</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <properties>
     <publish-sonar-phase>site</publish-sonar-phase>
-    <spring.framework.version>4.3.2.RELEASE</spring.framework.version>
-    <spring.security.version>4.1.3.RELEASE</spring.security.version>
     <apache-xmlgraphics.revision>1.9.1</apache-xmlgraphics.revision>
+    <blueprints-core.version>2.6.0</blueprints-core.version>
+    <rxjava.version>2.2.3</rxjava.version>
+    <jsch.version>0.1.54</jsch.version>
   </properties>
   <dependencies>
+    <dependency>
+      <groupId>io.reactivex.rxjava2</groupId>
+      <artifactId>rxjava</artifactId>
+      <version>${rxjava.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.antlr</groupId>
       <artifactId>antlr-complete</artifactId>
@@ -115,7 +121,7 @@
     <dependency>
       <groupId>com.jcraft</groupId>
       <artifactId>jsch</artifactId>
-      <version>0.1.46</version>
+      <version>${jsch.version}</version>
     </dependency>
     <dependency>
       <groupId>com.lowagie</groupId>
@@ -126,6 +132,11 @@
       <groupId>com.lowagie</groupId>
       <artifactId>itext-rtf</artifactId>
       <version>2.1.7</version>
+    </dependency>
+    <dependency>
+      <groupId>com.tinkerpop.blueprints</groupId>
+      <artifactId>blueprints-core</artifactId>
+      <version>${blueprints-core.version}</version>
     </dependency>
     <dependency>
       <groupId>commons-beanutils</groupId>
@@ -143,9 +154,14 @@
       <version>3.2.2</version>
     </dependency>
     <dependency>
-      <groupId>commons-dbcp</groupId>
-      <artifactId>commons-dbcp</artifactId>
-      <version>1.2.1</version>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-configuration2</artifactId>
+      <version>2.1.1</version>
+    </dependency>
+    <dependency>
+      <groupId>commons-configuration</groupId>
+      <artifactId>commons-configuration</artifactId>
+      <version>1.6</version>
     </dependency>
     <dependency>
       <groupId>commons-digester</groupId>
@@ -160,7 +176,6 @@
     <dependency>
       <groupId>commons-fileupload</groupId>
       <artifactId>commons-fileupload</artifactId>
-      <version>1.3.2</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
@@ -218,9 +233,8 @@
       <version>${dependency.xstream.revision}</version>
     </dependency>
     <dependency>
-      <groupId>dom4j</groupId>
+      <groupId>org.dom4j</groupId>
       <artifactId>dom4j</artifactId>
-      <version>1.6.1</version>
     </dependency>
     <dependency>
       <groupId>eigenbase</groupId>
@@ -240,7 +254,7 @@
     <dependency>
       <groupId>org.elasticsearch</groupId>
       <artifactId>elasticsearch</artifactId>
-      <version>2.2.0</version>
+      <version>6.4.2</version>
     </dependency>
     <dependency>
       <groupId>feed4j</groupId>
@@ -315,7 +329,6 @@
     <dependency>
       <groupId>jaxen</groupId>
       <artifactId>jaxen</artifactId>
-      <version>1.1</version>
     </dependency>
     <dependency>
       <groupId>jcifs</groupId>
@@ -404,34 +417,12 @@
       <version>2.6.9</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.ant</groupId>
-      <artifactId>ant</artifactId>
-      <version>1.7.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.ant</groupId>
-      <artifactId>ant-launcher</artifactId>
-      <version>1.7.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.axis</groupId>
-      <artifactId>axis</artifactId>
-      <version>1.4</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.axis</groupId>
-      <artifactId>axis-saaj</artifactId>
-      <version>1.4</version>
-    </dependency>
-    <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
-      <version>1.4.1</version>
     </dependency>
     <dependency>
       <groupId>org.apache.karaf</groupId>
       <artifactId>org.apache.karaf.main</artifactId>
-      <version>${dependency.karaf.revision}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
@@ -541,7 +532,6 @@
     <dependency>
       <groupId>com.fasterxml.jackson.jaxrs</groupId>
       <artifactId>jackson-jaxrs-json-provider</artifactId>
-      <version>2.9.4</version>
     </dependency>
     <dependency>
       <groupId>org.drools</groupId>
@@ -631,7 +621,6 @@
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
-      <version>42.1.1</version>
     </dependency>
     <dependency>
       <groupId>org.safehaus.jug</groupId>
@@ -662,32 +651,26 @@
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-core</artifactId>
-      <version>${spring.security.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-core</artifactId>
-      <version>${spring.framework.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-beans</artifactId>
-      <version>${spring.framework.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-context</artifactId>
-      <version>${spring.framework.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-aop</artifactId>
-      <version>${spring.framework.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-expression</artifactId>
-      <version>${spring.framework.version}</version>
     </dependency>
     <dependency>
       <groupId>org.syslog4j</groupId>
@@ -804,6 +787,11 @@
       <version>${dependency.pdi-osgi-bridge-core.revision}</version>
     </dependency>
     <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.core</artifactId>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
       <groupId>pentaho</groupId>
       <artifactId>simple-jndi</artifactId>
       <version>${dependency.simple-jndi.revision}</version>
@@ -832,11 +820,6 @@
       <groupId>org.pentaho</groupId>
       <artifactId>commons-database-model</artifactId>
       <version>${commons-database.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.pentaho</groupId>
-      <artifactId>pentaho-hadoop-shims-api</artifactId>
-      <version>${pentaho-hadoop-shims-api.version}</version>
     </dependency>
     <dependency>
       <groupId>org.pentaho</groupId>
@@ -931,7 +914,6 @@
     <dependency>
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>
-      <version>1.1.3</version>
     </dependency>
     <dependency>
       <groupId>org.apache.httpcomponents</groupId>
@@ -991,32 +973,19 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-      <version>1.7.7</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
-      <version>1.7.7</version>
     </dependency>
     <dependency>
       <groupId>log4j</groupId>
       <artifactId>log4j</artifactId>
-      <version>1.2.17</version>
     </dependency>
     <dependency>
       <groupId>pentaho</groupId>
       <artifactId>pentaho-platform-api</artifactId>
       <version>${platform.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.felix</groupId>
-      <artifactId>org.apache.felix.main</artifactId>
-      <version>4.2.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.felix</groupId>
-      <artifactId>org.apache.felix.framework</artifactId>
-      <version>4.4.1</version>
     </dependency>
     <dependency>
       <groupId>pentaho</groupId>
@@ -1031,7 +1000,7 @@
         <exclusion>
           <artifactId>xbean</artifactId>
           <groupId>org.apache.xbean</groupId>
-        </exclusion>        
+        </exclusion>
         <exclusion>
           <artifactId>jackson-core-asl</artifactId>
           <groupId>org.codehaus.jackson</groupId>
@@ -1045,14 +1014,12 @@
     <dependency>
       <groupId>org.apache.karaf.jaas</groupId>
       <artifactId>org.apache.karaf.jaas.boot</artifactId>
-      <version>2.4.2</version>
     </dependency>
     <dependency>
-      <groupId>pentaho</groupId>
-      <artifactId>pentaho-karaf-assembly</artifactId>
+      <groupId>org.hitachivantara.karaf.assemblies</groupId>
+      <artifactId>pmr</artifactId>
       <version>${pentaho-karaf.version}</version>
       <type>zip</type>
-      <classifier>pmr</classifier>
     </dependency>
     <dependency>
       <groupId>org.apache.kafka</groupId>
@@ -1093,11 +1060,10 @@
             <configuration>
               <artifactItems>
                 <artifactItem>
-                  <groupId>pentaho</groupId>
-                  <artifactId>pentaho-karaf-assembly</artifactId>
+                  <groupId>org.hitachivantara.karaf.assemblies</groupId>
+                  <artifactId>pmr</artifactId>
                   <type>zip</type>
-                  <classifier>pmr</classifier>
-                  <outputDirectory>target/dependencies</outputDirectory>
+                  <outputDirectory>target/dependencies/karaf</outputDirectory>
                 </artifactItem>
               </artifactItems>
             </configuration>
@@ -1106,7 +1072,6 @@
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>${maven-assembly-plugin.version}</version>
         <executions>
           <execution>
             <id>assembly</id>
